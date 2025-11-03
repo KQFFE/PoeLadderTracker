@@ -1,5 +1,3 @@
-# api_client.py
-
 import requests
 import time
 import configparser
