@@ -1,0 +1,13 @@
+# Ignore virtual environment
+venv/
+
+# Ignore pycache
+__pycache__/
+
+# Ignore user-specific configuration
+config.ini
+
+# Ignore build artifacts
+build/
+dist/
+*.spec
