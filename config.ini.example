@@ -1,0 +1,12 @@
+; config.ini.example
+[Settings]
+; How often to refresh the ladder data, in seconds.
+refresh_interval = 300
+
+; The default league to display on startup.
+; Use the league ID from the GGG API (e.g., "Standard", "Hardcore", "Affliction")
+default_league = Standard
+
+[UI]
+; UI theme. Options: "system", "light", "dark"
+theme = system

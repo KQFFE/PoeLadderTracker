@@ -7,6 +7,9 @@ __pycache__/
 # Ignore user-specific configuration
 config.ini
 
+# Ignore environment variables file
+.env
+
 # Ignore build artifacts
 build/
 dist/
