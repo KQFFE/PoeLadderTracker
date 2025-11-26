@@ -2,6 +2,9 @@
 
 This project is a Python script that fetches and displays Path of Exile ladder information.
 
+<img width="700" height="826" alt="image" src="https://github.com/user-attachments/assets/4727d55d-57f6-4241-9ccc-dcafec8bcf74" />
+
+
 ## Prerequisites
 
 - Python 3.x installed and added to your system's PATH. You can download it from [python.org](https://www.python.org/downloads/).
