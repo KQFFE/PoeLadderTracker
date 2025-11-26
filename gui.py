@@ -1,8 +1,11 @@
 import customtkinter
 import threading
 import unicodedata
-from api_client import fetch_leagues, fetch_ladder_chunk, CHUNK_SIZE
+# Use the new singleton API client
+from api import GGGAPIClient
 from data_processor import process_ladder_data, ALL_ASCENDANCY_NAMES
+
+CHUNK_SIZE = 200 # Define chunk size, as it was previously in api_client
 
 def get_display_width(s):
     width = 0
@@ -92,10 +95,12 @@ class App(customtkinter.CTk):
 
     def load_leagues(self):
         def task():
-            leagues = fetch_leagues()
+            leagues = GGGAPIClient.fetch_leagues()
             if leagues:
-                self.league_menu.configure(values=leagues)
-                self.league_menu.set(leagues[0])
+                # print("Leagues data:", leagues) # Optional: comment out for cleaner output
+                league_ids = [league['id'] for league in leagues]
+                self.league_menu.configure(values=league_ids)
+                self.league_menu.set(league_ids[0])
             else:
                 self.league_menu.configure(values=["Error fetching leagues"])
                 self.league_menu.set("Error fetching leagues")
@@ -153,10 +158,13 @@ class App(customtkinter.CTk):
                     break
 
             self.status_label.configure(text=f"Fetching characters {self.current_offset} to {self.current_offset + CHUNK_SIZE}...")
-            entries = fetch_ladder_chunk(league, self.current_offset)
+            # Use the new API client to fetch a chunk of data
+            data = GGGAPIClient.fetch_ladder(league, limit=CHUNK_SIZE, offset=self.current_offset)
 
-            if entries is None: break
-            if not entries: break
+            if data is None: break # Error occurred
+            
+            entries = data.get('entries', [])
+            if not entries: break # No more entries to fetch
             
             self.all_fetched_entries.extend(entries)
             self.current_offset += CHUNK_SIZE
@@ -255,11 +263,14 @@ class App(customtkinter.CTk):
                 break
 
             self.status_label.configure(text=f"Searching... Scanned {global_rank} characters so far.")
-            entries = fetch_ladder_chunk(league, current_offset)
+            # Use the new API client to fetch a chunk of data
+            data = GGGAPIClient.fetch_ladder(league, limit=CHUNK_SIZE, offset=current_offset)
 
-            if entries is None: 
+            if data is None: 
                 self.textbox.insert("1.0", "Error fetching ladder data.")
                 break
+            
+            entries = data.get('entries', [])
             if not entries: 
                 self.textbox.insert("1.0", f"Character '{char_name_to_find}' not found in this ladder.")
                 break

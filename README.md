@@ -40,24 +40,17 @@ This application requires API credentials from Grinding Gear Games (GGG) to func
 
 1.  **Register an application with GGG:** Follow the instructions in the [GGG developer documentation](https://www.pathofexile.com/developer/docs/authorization) to register a "Confidential Client". You will receive a `client_id` and a `client_secret`.
 
-2.  **Create the environment file:** In the root of the project, create a new file named `.env`. You can do this by copying the provided example file:
-    - On Windows (Command Prompt):
-      ```bash
-      copy .env.example .env
-      ```
-    - On macOS and Linux:
-      ```bash
-      cp .env.example .env
-      ```
+2.  **Create the configuration file:** In the root of the project, create a new file named `config.ini`.
 
-3.  **Add your credentials:** Open the new `.env` file and replace the placeholder values with the credentials you received from GGG:
+3.  **Add your credentials:** Open the new `config.ini` file and add the following content, replacing the placeholder values with the credentials you received from GGG:
 
-    ```
-    POE_CLIENT_ID="YOUR_CLIENT_ID"
-    POE_CLIENT_SECRET="YOUR_CLIENT_SECRET"
+    ```ini
+    [GGG_API]
+    POE_CLIENT_ID = YOUR_CLIENT_ID
+    POE_CLIENT_SECRET = YOUR_CLIENT_SECRET
     ```
 
-    **Note:** The `.env` file is included in `.gitignore` and will not be committed to the repository, keeping your credentials safe.
+    **Note:** The `config.ini` file is included in `.gitignore` and will not be committed to the repository, keeping your credentials safe.
 
 ## Running the Application
 
