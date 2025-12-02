@@ -91,7 +91,6 @@ def proxy_ladder(league_id):
     limit = request.args.get('limit', 200)
     offset = request.args.get('offset', 0)
     
-    # The ladder endpoint is on the old, unauthenticated API
     url = f"https://www.pathofexile.com/api/ladders/{league_id}?limit={limit}&offset={offset}"
     headers = {
         "User-Agent": f"OAuth PoeLadderTrackerProxy/1.0 (contact: {CONTACT_EMAIL})"

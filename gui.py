@@ -5,7 +5,7 @@ import unicodedata
 from api import GGGAPIClient
 from data_processor import process_ladder_data, ALL_ASCENDANCY_NAMES
 
-CHUNK_SIZE = 200 # Define chunk size, as it was previously in api_client
+CHUNK_SIZE = 200
 
 def get_display_width(s):
     width = 0
