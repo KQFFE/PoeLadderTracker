@@ -1,65 +1,70 @@
-# PoE Ladder Tracker
+# PoeLadderTracker
 
-This project is a Python script that fetches and displays Path of Exile ladder information.
+A simple desktop application for tracking and viewing Path of Exile ladder standings for public and private leagues.
 
-<img width="700" height="826" alt="image" src="https://github.com/user-attachments/assets/4727d55d-57f6-4241-9ccc-dcafec8bcf74" />
+## Features
 
+- Fetches and displays ladder data for any public league.
+- **Supports private leagues** by allowing users to enter the league's exact name.
+- Filters the ladder to show the top characters for a specific Ascendancy.
+- Searches the entire ladder for a specific character to find their global and ascendancy rank.
+- "Show More" functionality to progressively load more characters for a selected ascendancy.
 
-## Prerequisites
+## Setup
 
-- Python 3.x installed and added to your system's PATH. You can download it from [python.org](https://www.python.org/downloads/).
+1.  **Prerequisites**: Ensure you have Python 3 installed.
 
-## Installation
-
-1.  **Clone the repository.**
+2.  **Clone the repository**:
     ```bash
-    git clone https://github.com/KQFFE/PoELadderTracker.git
-    cd PoELadderTracker
+    git clone <your-repository-url>
+    cd PoeLadderTracker
     ```
 
-2.  **Create and activate a virtual environment.**
-    - On Windows:
-      ```bash
-      python -m venv venv
-      venv\Scripts\activate
-      ```
-    - On macOS and Linux:
-      ```bash
-      python3 -m venv venv
-      source venv/bin/activate
-      ```
-
-3.  **Install the required dependencies.**
+3.  **Install dependencies**:
     ```bash
-    pip install -r requirements.txt
+    pip install customtkinter requests
     ```
 
-## Configuration
+4.  **Create `config.ini`**:
+    You must create a `config.ini` file in the root directory of the project. This file stores your GGG API credentials.
 
-This application requires API credentials from Grinding Gear Games (GGG) to function.
+    *   Go to your Path of Exile account page.
+    *   Create a new application.
+        *   **Application Name**: `PoeLadderTracker` (or anything you prefer).
+        *   **Redirect URL**: `http://localhost/` (this is required but not used by the app).
+        *   **Description**: A brief description.
+    *   Once created, you will get a `Client ID` and a `Client Secret`.
 
-1.  **Register an application with GGG:** Follow the instructions in the [GGG developer documentation](https://www.pathofexile.com/developer/docs/authorization) to register a "Confidential Client". You will receive a `client_id` and a `client_secret`.
-
-2.  **Create the configuration file:** In the root of the project, create a new file named `config.ini`.
-
-3.  **Add your credentials:** Open the new `config.ini` file and add the following content, replacing the placeholder values with the credentials you received from GGG:
+    Now, create the `config.ini` file with the following content, replacing the placeholder values with your credentials:
 
     ```ini
     [GGG_API]
-    POE_CLIENT_ID = YOUR_CLIENT_ID
-    POE_CLIENT_SECRET = YOUR_CLIENT_SECRET
+    client_id = YOUR_CLIENT_ID
+    client_secret = YOUR_CLIENT_SECRET
+    contact = your.email@example.com
     ```
 
-    **Note:** The `config.ini` file is included in `.gitignore` and will not be committed to the repository, keeping your credentials safe.
+## How to Use
 
-## Running the Application
+1.  Run the application:
+    ```bash
+    python main.py
+    ```
 
-Once the setup and configuration are complete, you can run the ladder tracker:
+### Fetching Public Leagues
 
-```bash
-python main.py
-```
+- The application will automatically load all current public leagues into the "Ladder" dropdown.
+- Select the desired league and an ascendancy (or "All").
+- Click **Fetch Characters**.
 
----
+### Fetching Private Leagues
+
+- To fetch a private league ladder, check the **Use Private League** checkbox.
+- This will disable the public league dropdown and enable the text input field.
+- Enter the **exact name** of your private league (e.g., `My Awesome League (PL12345)`).
+- Click **Fetch Characters**.
+- If the league name is incorrect or the league is empty, an error message will be displayed.
+
+## Disclaimer
 
 This product isn't affiliated with or endorsed by Grinding Gear Games in any way.
