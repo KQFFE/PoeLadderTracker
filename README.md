@@ -1,6 +1,6 @@
 # PoeLadderTracker
 
-A simple desktop application for tracking and viewing Path of Exile ladder standings for public and private leagues.
+A desktop application for tracking and viewing Path of Exile ladder standings for public and private leagues. This application uses a proxy server to protect API credentials.
 
 ## Features
 
@@ -10,39 +10,46 @@ A simple desktop application for tracking and viewing Path of Exile ladder stand
 - Searches the entire ladder for a specific character to find their global and ascendancy rank.
 - "Show More" functionality to progressively load more characters for a selected ascendancy.
 
-## Setup
+## How it Works
+
+This project is split into two parts:
+1.  **Desktop App (`main.py`)**: The GUI that users interact with. It contains no API keys.
+2.  **Proxy Server (`proxy_server.py`)**: A simple web server that you host. It securely stores your GGG API keys and makes requests to the GGG API on behalf of the desktop app.
+
+This design ensures your API credentials are never exposed to end-users.
+
+## Setup for Users
 
 1.  **Prerequisites**: Ensure you have Python 3 installed.
 
-2.  **Clone the repository**:
-    ```bash
-    git clone <your-repository-url>
-    cd PoeLadderTracker
-    ```
-
-3.  **Install dependencies**:
+2.  **Install dependencies**:
     ```bash
     pip install customtkinter requests
     ```
 
-4.  **Create `config.ini`**:
-    You must create a `config.ini` file in the root directory of the project. This file stores your GGG API credentials.
-
-    *   Go to your Path of Exile account page.
-    *   Create a new application.
-        *   **Application Name**: `PoeLadderTracker` (or anything you prefer).
-        *   **Redirect URL**: `http://localhost/` (this is required but not used by the app).
-        *   **Description**: A brief description.
-    *   Once created, you will get a `Client ID` and a `Client Secret`.
-
-    Now, create the `config.ini` file with the following content, replacing the placeholder values with your credentials:
-
-    ```ini
-    [GGG_API]
-    client_id = YOUR_CLIENT_ID
-    client_secret = YOUR_CLIENT_SECRET
-    contact = your.email@example.com
+3.  **Run the application**:
+    Double-click the executable (once created) or run from the command line:
+    ```bash
+    python main.py
     ```
+    *No API key configuration is needed for end-users.*
+
+## Setup for the Developer (Hosting the Proxy)
+
+1.  **Get GGG API Credentials**: If you haven't already, create an application on your Path of Exile account page to get a `Client ID` and `Client Secret`.
+
+2.  **Configure the Proxy**: Open `proxy_server.py` and replace the placeholder values for `CLIENT_ID`, `CLIENT_SECRET`, and `CONTACT_EMAIL` with your actual credentials. For a production environment, it is strongly recommended to set these as environment variables instead of hardcoding them.
+
+3.  **Install Proxy Dependencies**:
+    ```bash
+    pip install Flask requests
+    ```
+
+4.  **Run the Proxy Server**:
+    ```bash
+    python proxy_server.py
+    ```
+    This will start the proxy on `http://127.0.0.1:5000`. For public access, you will need to deploy this to a hosting service (like Heroku, DigitalOcean, etc.) and update the `PROXY_BASE_URL` in `api.py` to your public server's URL.
 
 ## How to Use
 

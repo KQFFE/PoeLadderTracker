@@ -1,0 +1,96 @@
+import os
+import requests
+import time
+from flask import Flask, jsonify, request
+from functools import wraps
+
+# --- Configuration ---
+# For a real server, set these as environment variables for security.
+# For local testing, you can replace the "your_..." values directly.
+CLIENT_ID = os.environ.get("GGG_CLIENT_ID", "your_client_id_here")
+CLIENT_SECRET = os.environ.get("GGG_CLIENT_SECRET", "your_client_secret_here")
+CONTACT_EMAIL = os.environ.get("GGG_CONTACT_EMAIL", "your.email@example.com")
+
+# --- GGG API Details ---
+TOKEN_URL = "https://www.pathofexile.com/oauth/token"
+API_BASE_URL = "https://api.pathofexile.com"
+
+# --- In-memory Token Cache ---
+token_cache = {
+    "access_token": None,
+    "token_expiry": 0
+}
+
+app = Flask(__name__)
+
+def get_access_token():
+    """Fetches and caches a GGG API access token."""
+    if token_cache["access_token"] and time.time() < token_cache["token_expiry"]:
+        return token_cache["access_token"]
+
+    print("PROXY: Requesting new GGG access token...")
+    headers = {
+        "User-Agent": f"OAuth2.0-Client/{CLIENT_ID} ({CONTACT_EMAIL})",
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    payload = {
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
+        "grant_type": "client_credentials",
+        "scope": "service:leagues"
+    }
+    try:
+        response = requests.post(TOKEN_URL, headers=headers, data=payload)
+        response.raise_for_status()
+        token_data = response.json()
+        
+        token_cache["access_token"] = token_data['access_token']
+        expires_in = token_data.get('expires_in', 3600)
+        token_cache["token_expiry"] = time.time() + expires_in - 60
+        
+        print("PROXY: Access token obtained successfully.")
+        return token_cache["access_token"]
+    except requests.exceptions.RequestException as e:
+        print(f"PROXY: Error fetching access token: {e}")
+        return None
+
+@app.route('/leagues', methods=['GET'])
+def proxy_leagues():
+    """Proxies the request to fetch all leagues."""
+    token = get_access_token()
+    if not token:
+        return jsonify({"error": "Could not authenticate with GGG API"}), 500
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "User-Agent": f"OAuth2.0-Client/{CLIENT_ID} ({CONTACT_EMAIL})"
+    }
+    try:
+        response = requests.get(f"{API_BASE_URL}/leagues", headers=headers)
+        response.raise_for_status()
+        return jsonify(response.json())
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": str(e)}), e.response.status_code if e.response else 500
+
+@app.route('/ladder/<path:league_id>', methods=['GET'])
+def proxy_ladder(league_id):
+    """Proxies the request to fetch ladder data. This is a public endpoint."""
+    limit = request.args.get('limit', 200)
+    offset = request.args.get('offset', 0)
+    
+    # The ladder endpoint is on the old, unauthenticated API
+    url = f"https://www.pathofexile.com/api/ladders/{league_id}?limit={limit}&offset={offset}"
+    headers = {
+        "User-Agent": f"PoeLadderTrackerProxy/1.0 ({CONTACT_EMAIL})"
+    }
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        return jsonify(response.json())
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": str(e)}), e.response.status_code if e.response else 500
+
+if __name__ == '__main__':
+    # For production, use a proper WSGI server like Gunicorn or Waitress
+    # Example: gunicorn --bind 0.0.0.0:5000 proxy_server:app
+    app.run(host='0.0.0.0', port=5000, debug=True)
