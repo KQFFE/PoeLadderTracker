@@ -23,6 +23,11 @@ token_cache = {
 
 app = Flask(__name__)
 
+@app.route('/')
+def health_check():
+    """A simple health check endpoint to confirm the server is running."""
+    return jsonify({"status": "ok", "message": "PoeLadderTracker proxy is running."})
+
 def get_access_token():
     """Fetches and caches a GGG API access token."""
     if token_cache["access_token"] and time.time() < token_cache["token_expiry"]:
@@ -37,21 +42,26 @@ def get_access_token():
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
         "grant_type": "client_credentials",
-        "scope": "service:leagues"
+        "scope": "service:leagues" # Correct scope for fetching league list
     }
+    # New log to show exactly what credentials the server is using
+    print(f"PROXY: Auth Payload: client_id='{payload['client_id']}', client_secret='{'*' * len(payload['client_secret'])}'")
     try:
         response = requests.post(TOKEN_URL, headers=headers, data=payload)
         response.raise_for_status()
         token_data = response.json()
         
         token_cache["access_token"] = token_data['access_token']
-        expires_in = token_data.get('expires_in', 3600)
+        # Handle cases where 'expires_in' might be present but null
+        expires_in = token_data.get('expires_in') or 3600
         token_cache["token_expiry"] = time.time() + expires_in - 60
         
         print("PROXY: Access token obtained successfully.")
         return token_cache["access_token"]
     except requests.exceptions.RequestException as e:
         print(f"PROXY: Error fetching access token: {e}")
+        if e.response is not None:
+            print(f"PROXY: GGG API Response: {e.response.text}")
         return None
 
 @app.route('/leagues', methods=['GET'])
@@ -70,6 +80,9 @@ def proxy_leagues():
         response.raise_for_status()
         return jsonify(response.json())
     except requests.exceptions.RequestException as e:
+        print(f"PROXY: Error forwarding request to GGG /leagues: {e}")
+        if e.response is not None:
+            print(f"PROXY: GGG API Response: {e.response.text}")
         return jsonify({"error": str(e)}), e.response.status_code if e.response else 500
 
 @app.route('/ladder/<path:league_id>', methods=['GET'])
@@ -81,7 +94,7 @@ def proxy_ladder(league_id):
     # The ladder endpoint is on the old, unauthenticated API
     url = f"https://www.pathofexile.com/api/ladders/{league_id}?limit={limit}&offset={offset}"
     headers = {
-        "User-Agent": f"PoeLadderTrackerProxy/1.0 ({CONTACT_EMAIL})"
+        "User-Agent": f"OAuth PoeLadderTrackerProxy/1.0 (contact: {CONTACT_EMAIL})"
     }
     try:
         response = requests.get(url, headers=headers)

@@ -4,7 +4,7 @@ import requests
 # The client application only needs to know the proxy's address.
 # For local testing, this will be http://127.0.0.1:5000
 # When you deploy your proxy, change this to your server's public URL.
-PROXY_BASE_URL = "http://127.0.0.1:5000"
+PROXY_BASE_URL = "https://poeladdertracker.fly.dev"
 
 class GGGAPIClient:
     @staticmethod

@@ -20,7 +20,11 @@ This design ensures your API credentials are never exposed to end-users.
 
 ## Setup for Users
 
-1.  **Prerequisites**: Ensure you have Python 3 installed.
+1.  **Prerequisites**: Ensure you have Python 3 installed. It's recommended to use a virtual environment.
+    ```bash
+    python -m venv venv
+    .\venv\Scripts\Activate.ps1
+    ```
 
 2.  **Install dependencies**:
     ```bash
@@ -28,7 +32,6 @@ This design ensures your API credentials are never exposed to end-users.
     ```
 
 3.  **Run the application**:
-    Double-click the executable (once created) or run from the command line:
     ```bash
     python main.py
     ```
@@ -36,29 +39,37 @@ This design ensures your API credentials are never exposed to end-users.
 
 ## Setup for the Developer (Hosting the Proxy)
 
-1.  **Get GGG API Credentials**: If you haven't already, create an application on your Path of Exile account page to get a `Client ID` and `Client Secret`.
+1.  **Install `flyctl`**: First, install the `fly.io` command-line tool by running the following command in PowerShell:
+    ```powershell
+    iwr https://fly.io/install.ps1 -useb | iex
+    ```
+    After installation, **restart your terminal**.
 
-2.  **Configure the Proxy**: Open `proxy_server.py` and replace the placeholder values for `CLIENT_ID`, `CLIENT_SECRET`, and `CONTACT_EMAIL` with your actual credentials. For a production environment, it is strongly recommended to set these as environment variables instead of hardcoding them.
+2.  **Get GGG API Credentials**: Create an application on your Path of Exile account page to get a `Client ID` and `Client Secret`.
 
 3.  **Install Proxy Dependencies**:
     ```bash
-    pip install Flask requests
+    pip install Flask gunicorn requests
     ```
 
-4.  **Run the Proxy Server**:
+4.  **Create `Procfile` and `requirements.txt`**:
+    - Create a file named `Procfile` (no extension) with the content: `web: gunicorn --bind 0.0.0.0:$PORT proxy_server:app`
+    - In your activated venv, run `pip freeze | Out-File -Encoding utf8 requirements.txt` to create the requirements file.
+
+5.  **Set API Secrets on Fly.io**: Run the following commands in your terminal (outside the venv), replacing the placeholders with your actual GGG API credentials. This keeps your keys secure.
     ```bash
-    python proxy_server.py
+    fly secrets set GGG_CLIENT_ID="your_client_id_here"
+    fly secrets set GGG_CLIENT_SECRET="your_client_secret_here"
+    fly secrets set GGG_CONTACT_EMAIL="your.email@example.com"
     ```
-    This will start the proxy on `http://127.0.0.1:5000`. For public access, you will need to deploy this to a hosting service (like Heroku, DigitalOcean, etc.) and update the `PROXY_BASE_URL` in `api.py` to your public server's URL.
 
-## How to Use
-
-1.  Run the application:
+6.  **Deploy the Proxy Server**:
     ```bash
-    python main.py
+    fly deploy
     ```
+    After deployment, your proxy will be live at `https://poeladdertracker.fly.dev`.
 
-### Fetching Public Leagues
+## Usage
 
 - The application will automatically load all current public leagues into the "Ladder" dropdown.
 - Select the desired league and an ascendancy (or "All").

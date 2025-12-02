@@ -95,16 +95,21 @@ class App(customtkinter.CTk):
         self.load_leagues()
 
     def get_selected_league(self):
-        if self.private_league_check.get() == 1:
-            return self.private_league_entry.get()
-        else:
-            return self.league_menu.get()
+        try:
+            if self.private_league_check.get() == 1:
+                return self.private_league_entry.get()
+            else:
+                return self.league_menu.get()
+        except Exception:
+            # This can happen if the menu is not yet populated
+            return None
 
     def toggle_private_league(self):
         if self.private_league_check.get() == 1: # Checked
             self.league_menu.configure(state="disabled")
             self.private_league_entry.configure(state="normal")
         else: # Unchecked
+            # Re-enable only if leagues were successfully loaded
             self.league_menu.configure(state="normal")
             self.private_league_entry.configure(state="disabled")
 
@@ -115,16 +120,19 @@ class App(customtkinter.CTk):
             self.show_more_button.configure(state="normal")
 
     def load_leagues(self):
-        def task():
-            leagues = GGGAPIClient.fetch_leagues()
-            if leagues:
-                # print("Leagues data:", leagues) # Optional: comment out for cleaner output
-                league_ids = [league['id'] for league in leagues]
+        def update_ui(leagues_data):
+            if leagues_data:
+                league_ids = [league['id'] for league in leagues_data]
                 self.league_menu.configure(values=league_ids)
-                self.league_menu.set(league_ids[0])
+                if league_ids:
+                    self.league_menu.set(league_ids[0])
             else:
                 self.league_menu.configure(values=["Error fetching leagues"])
                 self.league_menu.set("Error fetching leagues")
+
+        def task():
+            leagues = GGGAPIClient.fetch_leagues()
+            self.after(0, update_ui, leagues)
         
         thread = threading.Thread(target=task)
         thread.start()
