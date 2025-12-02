@@ -88,3 +88,25 @@ This design ensures your API credentials are never exposed to end-users.
 ## Disclaimer
 
 This product isn't affiliated with or endorsed by Grinding Gear Games in any way.
+
+## Building the Executable (for Developers)
+
+To package the desktop application into a single `.exe` file for distribution on Windows, use PyInstaller.
+
+1.  **Activate the virtual environment**:
+    ```powershell
+    .\venv\Scripts\Activate.ps1
+    ```
+
+2.  **Install PyInstaller**:
+    ```bash
+    pip install pyinstaller
+    ```
+
+3.  **Run the build command**:
+    This command bundles the app and all necessary `customtkinter` assets into a single file.
+    ```bash
+    pyinstaller --name PoeLadderTracker --onefile --windowed --add-data "venv\Lib\site-packages\customtkinter;customtkinter" main.py
+    ```
+
+4.  **Find the executable**: The final `PoeLadderTracker.exe` will be located in the `dist` folder.
