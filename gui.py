@@ -178,7 +178,6 @@ class App(customtkinter.CTk):
         self.fetch_and_display_data_thread()
 
     def start_show_more_thread(self):
-        self.current_limit += 20
         self.current_limit += 50
         self.fetch_and_display_data_thread()
 

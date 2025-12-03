@@ -1,7 +1,7 @@
 import os
 import requests
 import time
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template, send_from_directory
 from dotenv import load_dotenv
 from urllib.parse import urlencode
 
@@ -27,10 +27,22 @@ token_cache = {}
 
 app = Flask(__name__)
 
+# --- Web App Routes ---
+
 @app.route('/')
-def health_check():
-    """A simple health check endpoint to confirm the server is running."""
-    return jsonify({"status": "ok", "message": "PoeLadderTracker proxy is running."})
+def index():
+    """Serves the main HTML page of the web application."""
+    # This assumes you have an 'index.html' in a 'templates' folder.
+    return render_template('index.html')
+
+@app.route('/static/<path:path>')
+def send_static(path):
+    """Serves static files like CSS and JavaScript."""
+    # This assumes you have your css/js in a 'static' folder.
+    return send_from_directory('static', path)
+
+
+# --- API Proxy Routes ---
 
 def get_access_token(scope="service:leagues"):
     """Fetches and caches a GGG API access token. Defaults to the primary working scope."""

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PoE Ladder Tracker</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>PoE Ladder Tracker</h1>
+
+        <div class="frame" id="options-frame">
+            <div class="grid-col">
+                <label for="league-menu">Ladder</label>
+                <select id="league-menu">
+                    <option>Fetching leagues...</option>
+                </select>
+            </div>
+            <div class="grid-col">
+                <label for="ascendancy-menu">Ascendancy</label>
+                <select id="ascendancy-menu">
+                    <!-- Ascendancies will be populated by JS -->
+                </select>
+            </div>
+            <div class="grid-row">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="private-league-check"> Use Private League
+                </label>
+                <input type="text" id="private-league-entry" placeholder="Name of Private League" disabled>
+            </div>
+            <div class="grid-row">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="deep-search-check"> Deep Search (Public Leagues Only)
+                </label>
+            </div>
+            <button id="fetch-button" class="full-width">Fetch Characters</button>
+        </div>
+
+        <div class="frame" id="search-frame">
+            <label for="char-name-entry">Character Name</label>
+            <div class="input-group">
+                <input type="text" id="char-name-entry" placeholder="Enter character name...">
+                <button id="search-button">Search</button>
+                <button id="stop-button" disabled>Stop</button>
+            </div>
+        </div>
+
+        <div class="results-frame">
+            <pre id="results-textbox"></pre>
+        </div>
+
+        <button id="show-more-button" class="full-width" disabled>Show More</button>
+
+        <div id="status-bar">Ready.</div>
+        <div id="disclaimer">This product isn't affiliated with or endorsed by Grinding Gear Games in any way.</div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
