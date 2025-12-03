@@ -2,8 +2,12 @@ import os
 import requests
 import time
 from flask import Flask, jsonify, request
-from functools import wraps
+from dotenv import load_dotenv
 
+# Load environment variables from a .env file if it exists.
+# This should be called before accessing any environment variables.
+load_dotenv()
+ 
 # --- Configuration ---
 # For a real server, set these as environment variables for security.
 # For local testing, you can replace the "your_..." values directly.
