@@ -27,9 +27,12 @@ class GGGAPIClient:
         return cls._make_request("leagues")
 
     @classmethod
-    def fetch_ladder(cls, league_id, limit=200, offset=0):
+    def fetch_ladder(cls, league_id, limit=200, offset=0, deep_search=False):
         """Fetches a chunk of the ladder for a given league."""
-        # The proxy handles URL encoding and correct GGG endpoint.
-        # We pass the raw league_id; Flask and requests will handle encoding.
-        endpoint = f"ladder/{league_id}?limit={limit}&offset={offset}"
+        if deep_search:
+            # Use the authenticated endpoint for deep searches (public leagues only)
+            endpoint = f"ladder/{league_id}?limit={limit}&offset={offset}"
+        else:
+            # Use the public endpoint for shallow searches (works with private league names)
+            endpoint = f"public-ladder/{league_id}?limit={limit}&offset={offset}"
         return cls._make_request(endpoint)
