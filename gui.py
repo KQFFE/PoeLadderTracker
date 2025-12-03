@@ -1,20 +1,10 @@
 import customtkinter
 import threading
-import unicodedata
 # Use the new singleton API client
 from api import GGGAPIClient
 from data_processor import process_ladder_data, ALL_ASCENDANCY_NAMES
 
 CHUNK_SIZE = 200
-
-def get_display_width(s):
-    width = 0
-    for char in s:
-        if unicodedata.east_asian_width(char) in ('F', 'W'):
-            width += 2
-        else:
-            width += 1
-    return width
 
 class App(customtkinter.CTk):
     def __init__(self):
@@ -79,6 +69,11 @@ class App(customtkinter.CTk):
         # --- Results Textbox ---
         self.textbox = customtkinter.CTkTextbox(self, width=600, font=self.textbox_font)
         self.textbox.grid(row=2, column=0, padx=20, pady=(0, 10), sticky="nsew")
+        
+        # --- Configure Tab Stops for Perfect Column Alignment ---
+        # We will set the tabs dynamically once the widget is drawn.
+        # This ensures the right-aligned column is always correct.
+        self.after(100, self.configure_tabs)
 
         # --- Show More Button ---
         self.show_more_button = customtkinter.CTkButton(self, text="Show More", command=self.start_show_more_thread, state="disabled")
@@ -93,6 +88,17 @@ class App(customtkinter.CTk):
         self.disclaimer_label.grid(row=5, column=0, padx=20, pady=(0, 10), sticky="s")
 
         self.load_leagues()
+
+    def configure_tabs(self):
+        """
+        Dynamically configures tab stops for the results textbox.
+        This ensures the right-most column is always perfectly aligned.
+        """
+        # Get the actual width of the textbox after it has been rendered.
+        widget_width = self.textbox.winfo_width()
+        # Define tab stops: Asc(0), Lvl(140), Name(200), Rank(far right, right-aligned)
+        tab_stops = (180, 300, widget_width - 35, "right")
+        self.textbox.configure(tabs=tab_stops)
 
     def get_selected_league(self):
         try:
@@ -233,14 +239,15 @@ class App(customtkinter.CTk):
             self.show_more_button.configure(state="normal")
 
     def format_results(self, final_results, league):
-        width = 80
+        width = 90
         header = f"✅ ASCENDANCY STANDINGS ✅".center(width)
         league_line = f"League: {league}".center(width)
         separator = "-" * width
 
         output = [f"{separator}\n", f"{header}\n", f"{league_line}\n", f"{separator}\n"]
 
-        table_header = f"| {'ASCENDANCY':<15} | {'LEVEL':^7} | {'CHARACTER NAME':^35} "
+        # Use tabs (\t) to align columns instead of manual padding
+        table_header = f"ASCENDANCY\tLEVEL\tCHARACTER NAME\tRANK (Asc/Global)"
         output.append(f"{table_header}\n")
         output.append(f"{separator}\n")
 
@@ -249,18 +256,8 @@ class App(customtkinter.CTk):
             if last_ascendancy and char['ascendancy'] != last_ascendancy:
                 output.append(f"{separator}\n")
             
-            asc_name = char['ascendancy']
-            level = char['level']
-            char_name = char['name']
-
-            char_name_width = 35
-            display_width = get_display_width(char_name)
-            padding = char_name_width - display_width
-            left_padding = padding // 2
-            right_padding = padding - left_padding
-            centered_char_name = f"{ ' ' * left_padding}{char_name}{ ' ' * right_padding}"
-
-            line = f"| {asc_name:<15} | {level:^7} | {centered_char_name} "
+            rank_str = f"{char['asc_rank']} / {char['global_rank']}"
+            line = f"{char['ascendancy']}\t{char['level']}\t{char['name']}\t{rank_str}"
             output.append(f"{line}\n")
             last_ascendancy = char['ascendancy']
 

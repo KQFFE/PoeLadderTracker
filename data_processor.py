@@ -17,18 +17,22 @@ def process_ladder_data(all_fetched_entries, selected_ascendancy=None, limit=5):
     ascendancy_groups = {asc: [] for asc in ascendancies_to_process}
     
     # 1. Core Grouping Logic
-    for entry in all_fetched_entries:
+    for index, entry in enumerate(all_fetched_entries):
         char_data = entry['character']
         ascendancy = char_data['class']
         
         if ascendancy not in ascendancy_groups:
              continue 
         
+        asc_rank = len(ascendancy_groups[ascendancy]) + 1
+
         character_info = {
             'ascendancy': ascendancy,
             'level': char_data['level'],
             'xp': char_data['experience'],
-            'name': char_data['name']
+            'name': char_data['name'],
+            'global_rank': entry['rank'],
+            'asc_rank': asc_rank
         }
 
         if len(ascendancy_groups[ascendancy]) < limit:

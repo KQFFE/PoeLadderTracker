@@ -1,9 +1,11 @@
+import os
 import requests
 
 # The proxy server will handle authentication and API keys.
-# For local testing, this will be http://127.0.0.1:5000
-# When you deploy your proxy, change this to your server's public URL.
-PROXY_BASE_URL = "https://poeladdertracker.fly.dev"
+# It defaults to the deployed server on Fly.io.
+# For local testing, you can set an environment variable:
+# $env:PROXY_URL="http://127.0.0.1:5000"
+PROXY_BASE_URL = os.environ.get("PROXY_URL", "https://poeladdertracker.fly.dev")
 
 class GGGAPIClient:
     @staticmethod
