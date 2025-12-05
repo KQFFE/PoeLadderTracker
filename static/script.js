@@ -1,5 +1,7 @@
 // --- Configuration ---
-const PROXY_BASE_URL = "http://127.0.0.1:5000"; 
+// site url https://poeladdertracker.xyz/
+// check local url when running proxy server
+const PROXY_BASE_URL = "https://poeladdertracker.xyz/"; 
 const ALL_ASCENDANCY_NAMES = [
     "Slayer", "Gladiator", "Champion", "Assassin", "Saboteur", "Trickster", "Juggernaut", "Berserker", "Chieftain",
     "Necromancer", "Occultist", "Elementalist", "Deadeye", "Raider", "Pathfinder", "Inquisitor", "Hierophant",
@@ -207,6 +209,7 @@ async function searchCharacter() {
     const isDeep = deepSearchCheck.checked;
     let currentSearchOffset = 0;
     let foundEntry = null;
+    const allScannedEntries = [];
 
     try {
         while (true) {
@@ -219,6 +222,8 @@ async function searchCharacter() {
 
             if (!data || !data.entries || data.entries.length === 0) break;
 
+            allScannedEntries.push(...data.entries);
+
             foundEntry = data.entries.find(e => e.character.name.toLowerCase() === charName.toLowerCase());
             if (foundEntry) break;
 
@@ -227,6 +232,15 @@ async function searchCharacter() {
         }
 
         if (foundEntry) {
+            // Calculate ascendancy rank from all scanned entries
+            const ascendancyCounts = {};
+            allScannedEntries.sort((a, b) => a.rank - b.rank);
+            for (const entry of allScannedEntries) {
+                ascendancyCounts[entry.character.class] = (ascendancyCounts[entry.character.class] || 0) + 1;
+                if (entry.character.name === foundEntry.character.name) break;
+            }
+            const ascRank = ascendancyCounts[foundEntry.character.class];
+
             const resultHTML = `
                 <table>
                     <thead><tr><th colspan="2">Character Found</th></tr></thead>
@@ -234,7 +248,7 @@ async function searchCharacter() {
                         <tr><td>Name</td><td>${foundEntry.character.name}</td></tr>
                         <tr><td>Level</td><td>${foundEntry.character.level}</td></tr>
                         <tr><td>Class</td><td>${foundEntry.character.class}</td></tr>
-                        <tr><td>Global Rank</td><td>${foundEntry.rank}</td></tr>
+                        <tr><td>Rank</td><td>${ascRank} (Asc) / ${foundEntry.rank} (Global)</td></tr>
                     </tbody>
                 </table>`;
             resultsBox.innerHTML = resultHTML;
