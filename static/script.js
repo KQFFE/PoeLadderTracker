@@ -1,348 +1,364 @@
-// This script will replicate the logic from your gui.py file.
-
+// --- Configuration ---
+const PROXY_BASE_URL = "http://127.0.0.1:5000"; 
+const ALL_ASCENDANCY_NAMES = [
+    "Slayer", "Gladiator", "Champion", "Assassin", "Saboteur", "Trickster", "Juggernaut", "Berserker", "Chieftain",
+    "Necromancer", "Occultist", "Elementalist", "Deadeye", "Raider", "Pathfinder", "Inquisitor", "Hierophant",
+    "Guardian", "Ascendant"
+];
+// Sort the array alphabetically for display in the dropdown menu.
+ALL_ASCENDANCY_NAMES.sort();
 const CHUNK_SIZE = 200;
-const MAX_SEARCH_ENTRIES = 20000; // Corresponds to _should_stop_fetching limit
 
-document.addEventListener('DOMContentLoaded', () => {
-    // --- Element References ---
-    const leagueMenu = document.getElementById('league-menu');
-    const ascendancyMenu = document.getElementById('ascendancy-menu');
-    const privateLeagueCheck = document.getElementById('private-league-check');
-    const privateLeagueEntry = document.getElementById('private-league-entry');
-    const deepSearchCheck = document.getElementById('deep-search-check');
-    const fetchButton = document.getElementById('fetch-button');
-    const charNameEntry = document.getElementById('char-name-entry');
-    const searchButton = document.getElementById('search-button');
-    const stopButton = document.getElementById('stop-button');
-    const resultsTextbox = document.getElementById('results-textbox');
-    const showMoreButton = document.getElementById('show-more-button');
-    const statusBar = document.getElementById('status-bar');
+// --- State ---
+const state = {
+    allFetchedEntries: [],
+    currentOffset: 0,
+    currentLimit: 10,
+    allLeaguesData: [],
+    stopSearchController: null,
+};
 
-    // --- State Variables ---
-    let allLeaguesData = [];
-    let allFetchedEntries = [];
-    let currentLimit = 20;
-    let currentOffset = 0;
-    let stopFlag = false; // Flag to stop ongoing fetches/searches
+let leagueMenu, ascendancyMenu, privateLeagueCheck, privateLeagueEntry,
+    deepSearchCheck, fetchButton, searchButton, stopButton, charNameEntry,
+    resultsBox, showMoreButton, statusLabel;
 
-    const ALL_ASCENDANCY_NAMES = [
-        "Ascendant", "Assassin", "Berserker", "Champion", "Chieftain",
-        "Deadeye", "Elementalist", "Gladiator", "Guardian", "Hierophant",
-        "Inquisitor", "Juggernaut", "Necromancer", "Occultist", "Pathfinder",
-        "Saboteur", "Slayer", "Trickster", "Warden"
-    ];
-
-    // --- Initialization ---
-
-    function populateAscendancies() {
-        ascendancyMenu.innerHTML = '<option>All</option>';
-        ALL_ASCENDANCY_NAMES.forEach(asc => {
-            const option = document.createElement('option');
-            option.value = asc;
-            option.textContent = asc;
-            ascendancyMenu.appendChild(option);
-        });
-    }
-
-    async function loadLeagues() {
-        // Disable buttons until leagues are loaded
-        fetchButton.disabled = true;
-        searchButton.disabled = true;
-        try {
-            const response = await fetch('/leagues');
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            const responseData = await response.json(); // This is the Flask jsonify output
-            const leagues = responseData.result; // The actual list of leagues is inside the 'result' key
-
-            if (!leagues) throw new Error("API response did not contain a 'result' array.");
-            
-            allLeaguesData = leagues;
-            leagueMenu.innerHTML = ''; // Clear "fetching..."
-            // Sort leagues alphabetically by their display text
-            // This sort is now robust and handles malformed entries from the API.
-            leagues.sort((a, b) => {
-                const textA = a?.text || ''; // Safely access 'text' or default to empty string
-                const textB = b?.text || ''; // Safely access 'text' or default to empty string
-                return textA.localeCompare(textB);
-            });
-
-            leagues.forEach(league => {
-                const option = document.createElement('option');
-                // The API gives us 'id' and 'text'. We'll use 'text' for the user-facing display.
-                option.value = league.text;
-                option.textContent = league.text;
-                leagueMenu.appendChild(option);
-            });
-            // Re-enable buttons now that leagues are loaded
-            fetchButton.disabled = false;
-            searchButton.disabled = false;
-        } catch (error) {
-            console.error("Error fetching leagues:", error);
-            leagueMenu.innerHTML = '<option>Error fetching leagues</option>';
-            // Keep buttons disabled if there's an error
+// --- API Client ---
+async function makeApiRequest(endpoint, signal) {
+    try {
+        const response = await fetch(`${PROXY_BASE_URL}/${endpoint}`, { signal });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
         }
+        return await response.json();
+    } catch (e) {
+        console.error(`Error fetching from ${endpoint}:`, e);
+        statusLabel.textContent = `Error: Failed to fetch data from server.`;
+        return null;
+    }
+}
+
+function fetchLeagues() {
+    return makeApiRequest("leagues");
+}
+
+function fetchLadder(leagueId, limit, offset, isDeep, signal) {
+    const endpoint = isDeep
+        ? `ladder/${leagueId}?limit=${limit}&offset=${offset}`
+        : `public-ladder/${leagueId}?limit=${limit}&offset=${offset}`;
+    return makeApiRequest(endpoint, signal);
+}
+
+// --- UI Logic ---
+function setControlsState(isFetching) {
+    fetchButton.disabled = isFetching;
+    searchButton.disabled = isFetching;
+    stopButton.disabled = !isFetching;
+    leagueMenu.disabled = isFetching || privateLeagueCheck.checked;
+    ascendancyMenu.disabled = isFetching;
+    privateLeagueCheck.disabled = isFetching;
+    deepSearchCheck.disabled = isFetching || privateLeagueCheck.checked;
+    privateLeagueEntry.disabled = isFetching || !privateLeagueCheck.checked;
+    charNameEntry.disabled = isFetching;
+}
+
+function formatResults(finalResults, league) {
+    let tableRows = '';
+    let lastAscendancy = null;
+
+    for (const char of finalResults) {
+        const isNewAscendancy = lastAscendancy && char.ascendancy !== lastAscendancy;
+        const separatorClass = isNewAscendancy ? ' class="ascendancy-separator"' : '';
+
+        tableRows += `
+            <tr${separatorClass}>
+                <td>${char.ascendancy}</td>
+                <td>${char.level}</td>
+                <td>${char.name}</td>
+                <td>${char.asc_rank} / ${char.global_rank}</td>
+            </tr>`;
+        lastAscendancy = char.ascendancy;
     }
 
-    // --- Event Listeners ---
+    return `
+        <table>
+            <thead><tr><th>Ascendancy</th><th>Level</th><th>Character Name</th><th>Rank (Asc/Global)</th></tr></thead>
+            <tbody>${tableRows}</tbody>
+        </table>`;
+}
 
-    privateLeagueCheck.addEventListener('change', () => {
-        leagueMenu.disabled = privateLeagueCheck.checked;
-        privateLeagueEntry.disabled = !privateLeagueCheck.checked;
-        if (privateLeagueCheck.checked) {
-            // If private league is checked, deep search is not possible
-            deepSearchCheck.checked = false; // Deep search is for public leagues
+// --- Data Fetching ---
+async function loadLeagues() {
+    setControlsState(true); // Disable controls while loading
+    updateStatus("Fetching leagues from proxy...");
+    const data = await fetchLeagues();
+    
+    const leaguesArray = Array.isArray(data) ? data : (data && Array.isArray(data.result) ? data.result : null);
+
+    if (leaguesArray && leaguesArray.length > 0) {
+        state.allLeaguesData = leaguesArray;
+        state.allLeaguesData.sort((a, b) => a.id.localeCompare(b.id));
+
+        leagueMenu.innerHTML = leaguesArray
+            .map(lg => `<option value="${lg.id}">${lg.id}</option>`)
+            .join('');
+        
+        const defaultLeague = state.allLeaguesData.find(lg => lg.id === "Standard") || state.allLeaguesData[0];
+        if (defaultLeague) {
+            leagueMenu.value = defaultLeague.id;
         }
-    });
 
-    deepSearchCheck.addEventListener('change', () => {
-        if (deepSearchCheck.checked) {
-            privateLeagueCheck.checked = false;
-            // If deep search is checked, private league entry is disabled
-            leagueMenu.disabled = false;
-            privateLeagueEntry.disabled = true;
+        updateStatus("Ready.");
+        setControlsState(false);
+    } else {
+        leagueMenu.innerHTML = `<option value="">Error fetching leagues</option>`;
+        // The error is already logged by makeApiRequest. Just update the status.
+        updateStatus("Error: Could not load leagues. See console for details.");
+        setControlsState(false); // Allow user to try again if it was a temp issue.
+    }
+}
+
+function getSelectedLeagueId() {
+    if (privateLeagueCheck.checked) {
+        const privateId = privateLeagueEntry.value.trim();
+        if (!privateId) {
+            updateStatus("Error: Private league name cannot be empty.");
+            return null;
         }
-    });
-
-    fetchButton.addEventListener('click', startFetch);
-    searchButton.addEventListener('click', startSearch);
-    showMoreButton.addEventListener('click', showMore);
-
-    stopButton.addEventListener('click', () => {
-        stopFlag = true;
-        console.log("Search stopped by user.");
-        statusBar.textContent = "Search stopped.";
-        resetButtonStates();
-    });
-
-    // --- Helper Functions ---
-
-    function getSelectedLeagueName() {
-        if (privateLeagueCheck.checked) {
-            return privateLeagueEntry.value;
-        }
-        return leagueMenu.value;
+        return privateId;
     }
 
-    function getSelectedLeagueId() {
-        const selectedName = getSelectedLeagueName();
-        const league = allLeaguesData.find(l => l.text === selectedName);
-        // The authenticated API needs the 'id', the public one can use the name.
-        // We'll always try to return the ID if we can find it.
-        return league ? league.id : selectedName;
+    if (!leagueMenu.value) {
+        updateStatus("Error: Please select a league.");
+        return null;
+    }
+    return leagueMenu.value;
+}
+
+async function fetchAndDisplayData() {
+    setControlsState(true);
+    updateStatus("Fetching data...");
+    resultsBox.textContent = "";
+    showMoreButton.style.display = 'none';
+
+    const leagueId = getSelectedLeagueId();
+    if (!leagueId) {
+        setControlsState(false);
+        return;
     }
 
-    function setButtonsState(isFetching) {
-        fetchButton.disabled = isFetching;
-        searchButton.disabled = isFetching;
-        stopButton.disabled = !isFetching;
-        // Show More button is enabled only if not fetching and not "All" ascendancies
-        showMoreButton.disabled = isFetching || (ascendancyMenu.value === "All");
-    }
+    const selectedAscendancy = ascendancyMenu.value === "All" ? null : ascendancyMenu.value;
+    const isDeep = deepSearchCheck.checked;
 
-    function updateStatusBar(message, isError = false) {
-        statusBar.textContent = message;
-        statusBar.style.color = isError ? 'red' : '#6c757d';
-        if (isError) console.error(message);
-        else console.log(message);
-    }
-
-    function resetButtonStates() {
-        setButtonsState(false);
-    }
-
-    function formatResults(results, leagueName) {
-        const width = 90;
-        const header = `✅ ASCENDANCY STANDINGS ✅`.padStart(width / 2 + 15); // Adjust for emoji
-        const leagueLine = `League: ${leagueName}`.padStart(width / 2 + leagueName.length / 2);
-        const separator = "-".repeat(width);
-        let output = `${separator}\n${header.padStart(45 + header.length/2)}\n${leagueLine.padStart(45 + leagueLine.length/2)}\n${separator}\n`;
-        output += `ASCENDANCY\tLEVEL\tCHARACTER NAME\tRANK (Asc/Global)\n`;
-        output += `${separator}\n`;
-
-        let lastAscendancy = null;
-        for (const char of results) {
-            if (lastAscendancy && char.ascendancy !== lastAscendancy) {
-                output += `\n`; // Just a newline for separation between ascendancies
+    while (true) {
+        const shouldStop = () => {
+            if (state.currentOffset >= 15000 && !isDeep) return true;
+            if (selectedAscendancy) {
+                const count = state.allFetchedEntries.filter(e => e.character.class === selectedAscendancy).length;
+                return count >= state.currentLimit;
             }
-            const rankStr = `${char.asc_rank} / ${char.global_rank}`;
-            output += `${char.ascendancy.padEnd(15)}\t${String(char.level).padEnd(5)}\t${char.name.padEnd(25)}\t${rankStr}\n`;
-            lastAscendancy = char.ascendancy;
+            return false;
+        };
+
+        if (shouldStop()) break;
+
+        updateStatus(`Fetching characters ${state.currentOffset} to ${state.currentOffset + CHUNK_SIZE}...`);
+        const data = await fetchLadder(leagueId, CHUNK_SIZE, state.currentOffset, isDeep, state.stopSearchController ? state.stopSearchController.signal : null);
+
+        if (!data || !data.entries || data.entries.length === 0) break;
+
+        state.allFetchedEntries.push(...data.entries);
+        state.currentOffset += CHUNK_SIZE;
+
+        if (!selectedAscendancy) {
+            const processed = processLadderData(state.allFetchedEntries, null, state.currentLimit);
+            resultsBox.innerHTML = formatResults(processed, leagueId);
         }
-        output += `${separator}\n`;
-        return output;
+        await new Promise(resolve => setTimeout(resolve, 500));
     }
 
-    async function apiFetchLadder(leagueId, offset, deepSearch) {
-        const endpoint = deepSearch ? 'ladder' : 'public-ladder';
-        const url = `/${endpoint}/${encodeURIComponent(leagueId)}?limit=${CHUNK_SIZE}&offset=${offset}`;
-        try {
-            const response = await fetch(url);
-            if (!response.ok) {
-                const errorData = await response.json();
-                updateStatusBar(`API Error: ${response.status} - ${errorData.error || response.statusText}`, true);
-                return null;
-            }
-            return await response.json();
-        } catch (error) {
-            updateStatusBar(`Network error fetching ladder: ${error.message}`, true);
-            return null; // Return null on network errors
-        }
+    const processed = processLadderData(state.allFetchedEntries, selectedAscendancy, state.currentLimit);
+    resultsBox.innerHTML = formatResults(processed, leagueId);
+    resultsBox.scrollTop = 0; // Scroll to top to see results
+
+    updateStatus(`Done. Showing top ${state.currentLimit} for ${selectedAscendancy || 'all ascendancies'}.`);
+    setControlsState(false);
+    if (selectedAscendancy) {
+        showMoreButton.style.display = 'block';
+    }
+}
+
+async function searchCharacter() {
+    const charName = charNameEntry.value.trim();
+    if (!charName) {
+        resultsBox.textContent = "Please enter a character name to search.";
+        return;
     }
 
-    // --- Core Logic Functions ---
+    state.stopSearchController = new AbortController();
+    setControlsState(true);
+    resultsBox.textContent = `Searching for '${charName}'...`;
 
-    function startFetch() {
-        allFetchedEntries = [];
-        currentOffset = 0; // Reset offset for new fetch
-        currentLimit = 20;
-        fetchAndDisplayData();
+    const leagueId = getSelectedLeagueId();
+    if (!leagueId) {
+        setControlsState(false);
+        return;
     }
+    const isDeep = deepSearchCheck.checked;
+    let currentSearchOffset = 0;
+    let foundEntry = null;
 
-    function showMore() {
-        currentLimit += 50;
-        fetchAndDisplayData(true); // Indicate that this is a "show more" action
+    try {
+        while (true) {
+            if (state.stopSearchController.signal.aborted) throw new Error("Search stopped by user.");
+            // Stop searching public ladders after 15k entries, deep search continues
+            if (currentSearchOffset >= 15000 && !isDeep) break;
+
+            updateStatus(`Searching... Scanned ${currentSearchOffset} characters.`);
+            const data = await fetchLadder(leagueId, CHUNK_SIZE, currentSearchOffset, isDeep, state.stopSearchController.signal);
+
+            if (!data || !data.entries || data.entries.length === 0) break;
+
+            foundEntry = data.entries.find(e => e.character.name.toLowerCase() === charName.toLowerCase());
+            if (foundEntry) break;
+
+            currentSearchOffset += CHUNK_SIZE;
+            await new Promise(resolve => setTimeout(resolve, 500)); // Rate limit between chunks
+        }
+
+        if (foundEntry) {
+            const resultHTML = `
+                <table>
+                    <thead><tr><th colspan="2">Character Found</th></tr></thead>
+                    <tbody>
+                        <tr><td>Name</td><td>${foundEntry.character.name}</td></tr>
+                        <tr><td>Level</td><td>${foundEntry.character.level}</td></tr>
+                        <tr><td>Class</td><td>${foundEntry.character.class}</td></tr>
+                        <tr><td>Global Rank</td><td>${foundEntry.rank}</td></tr>
+                    </tbody>
+                </table>`;
+            resultsBox.innerHTML = resultHTML;
+            updateStatus(`Search complete. Found '${charName}'.`);
+        } else {
+            resultsBox.innerHTML = `
+                <div style="padding: 20px; text-align: center;">
+                    Character '${charName}' not found after scanning ${currentSearchOffset} entries.
+                </div>`;
+            updateStatus("Search complete. Character not found.");
+        }
+    } catch (error) {
+        updateStatus(error.name === 'AbortError' ? "Search stopped." : `Search failed: ${error.message}`);
+    } finally {
+        setControlsState(false);
+        state.stopSearchController = null;
     }
+}
 
-    async function fetchAndDisplayData(isShowMore = false) {
-        setButtonsState(true);
-        stopFlag = false; // Clear stop flag for new operation
-        updateStatusBar("Fetching data...");
-        resultsTextbox.textContent = "";
+function updateStatus(message) {
+    statusLabel.textContent = message;
+}
 
-        const leagueName = getSelectedLeagueName();
-        const leagueId = getSelectedLeagueId();
-        const ascendancy = ascendancyMenu.value === "All" ? null : ascendancyMenu.value;
+// --- Event Listeners ---
+function initializeApp() {
+    // --- DOM Element Lookups ---
+    // This is done inside initializeApp to ensure the DOM is fully loaded.
+    leagueMenu = document.getElementById('league-menu');
+    ascendancyMenu = document.getElementById('ascendancy-menu');
+    privateLeagueCheck = document.getElementById('private-league-check');
+    privateLeagueEntry = document.getElementById('private-league-entry');
+    deepSearchCheck = document.getElementById('deep-search-check');
+    fetchButton = document.getElementById('fetch-button');
+    searchButton = document.getElementById('search-button');
+    stopButton = document.getElementById('stop-button');
+    charNameEntry = document.getElementById('char-name-entry');
+    resultsBox = document.getElementById('results-box');
+    showMoreButton = document.getElementById('show-more-button');
+    statusLabel = document.getElementById('status-label');
 
-        // This is a simplified version of the Python fetching loop.
-        while (!stopFlag && currentOffset < MAX_SEARCH_ENTRIES) {
-            updateStatusBar(`Fetching characters ${currentOffset} to ${currentOffset + CHUNK_SIZE}...`);
-            const data = await apiFetchLadder(leagueId, currentOffset, deepSearchCheck.checked);
-            if (stopFlag) break; // Check stopFlag again after API call
+    ascendancyMenu.innerHTML = ["All", ...ALL_ASCENDANCY_NAMES]
+        .map(asc => `<option value="${asc}">${asc}</option>`)
+        .join('');
 
-            if (stopFlag) break;
-            if (!data || !data.entries || data.entries.length === 0) {
-                break; // No more data or an error occurred
-            }
-
-            allFetchedEntries.push(...data.entries);
-            currentOffset += CHUNK_SIZE;
-            
-            // Sort by rank to maintain order (important for accurate ascendancy ranks)
-            allFetchedEntries.sort((a, b) => a.rank - b.rank);
-
-            // Live update for "All" ascendancies
-            if (!ascendancy) {
-                const processed = processLadderData(allFetchedEntries, null, currentLimit);
-                resultsTextbox.textContent = formatResults(processed, leagueName);
-            }
-            await new Promise(resolve => setTimeout(resolve, 250)); // Respect rate limits
-        }
-
-        // Final update
-        const processed = processLadderData(allFetchedEntries, ascendancy, currentLimit);
-        resultsTextbox.textContent = formatResults(processed, leagueName);
-        updateStatusBar(`Done. Showing top ${currentLimit} for ${ascendancy || 'all ascendancies'}.`);
-        resetButtonStates();
-    }
-
-    async function startSearch() {
-        const charName = charNameEntry.value.trim();
-        if (!charName) {
-            resultsTextbox.textContent = "Please enter a character name to search.";
-            return;
-        }
-
-        setButtonsState(true);
-        stopFlag = false;
-        statusBar.textContent = `Searching for ${charName}...`;
-        resultsTextbox.textContent = "";
-
-        // Simplified search logic for the web version
-        // A full implementation would mirror the Python version's local search first.
-        let offset = 0;
-        let found = false;
-        const leagueId = getSelectedLeagueId();
-
-        while (!stopFlag && offset < 20000 && !found) {
-            statusBar.textContent = `Searching... Scanned ${offset} characters.`;
-            const data = await apiFetchLadder(leagueId, offset, deepSearchCheck.checked);
-
-            if (stopFlag) break;
-            if (!data || !data.entries || data.entries.length === 0) {
-                break; // End of ladder
-            }
-
-            for (const entry of data.entries) {
-                if (entry.character.name === charName) {
-                    resultsTextbox.textContent = `Character Found!\n\n` + JSON.stringify(entry, null, 2);
-                    statusBar.textContent = `Found ${charName} at rank ${entry.rank}.`;
-                    found = true;
-                    break;
-                }
-            }
-            offset += CHUNK_SIZE;
-            await new Promise(resolve => setTimeout(resolve, 250));
-        }
-
-        if (!found && !stopFlag) {
-            resultsTextbox.textContent = `Character '${charName}' not found after scanning ${offset} entries.`;
-            statusBar.textContent = "Search complete. Character not found.";
-        }
-        resetButtonStates();
-    }
-
-    // This is a simplified JS version of your data_processor.py
-    function processLadderData(entries, selectedAscendancy, limit) {
-        const ascendanciesToProcess = selectedAscendancy ? [selectedAscendancy] : ALL_ASCENDANCY_NAMES;
-        const ascendancyGroups = {};
-        ascendanciesToProcess.forEach(asc => ascendancyGroups[asc] = []);
-
-        // 1. Core Grouping Logic
-        // We need to re-calculate ascendancy ranks based on the full, sorted list of entries.
-        const tempAscendancyCounts = {};
-        ALL_ASCENDANCY_NAMES.forEach(asc => tempAscendancyCounts[asc] = 0);
-
-        for (const entry of entries) {
-            const charData = entry.character;
-            const ascendancy = charData.class;
-
-            if (ascendancy in tempAscendancyCounts) {
-                tempAscendancyCounts[ascendancy]++;
-                const ascRank = tempAscendancyCounts[ascendancy];
-
-                const characterInfo = {
-                    ascendancy: ascendancy,
-                    level: charData.level,
-                    xp: charData.experience,
-                    name: charData.name,
-                    global_rank: entry.rank,
-                    asc_rank: ascRank
-                };
-
-                if (ascendancyGroups[ascendancy] && ascendancyGroups[ascendancy].length < limit) {
-                    ascendancyGroups[ascendancy].push(characterInfo);
-                }
-            }
-        }
-
-        // 2. Final Consolidation and Sorting
-        let finalLadderList = [];
-        for (const ascList of Object.values(ascendancyGroups)) {
-            finalLadderList.push(...ascList);
-        }
-
-        // Sort by ascendancy name, then by ascendancy rank
-        finalLadderList.sort((a, b) => {
-            if (a.ascendancy < b.ascendancy) return -1;
-            if (a.ascendancy > b.ascendancy) return 1;
-            return a.asc_rank - b.asc_rank;
-        });
-
-        return finalLadderList;
-    }
-
-    // --- Main Execution ---
-    populateAscendancies();
     loadLeagues();
 
-});
+    privateLeagueCheck.addEventListener('change', () => {
+        const isChecked = privateLeagueCheck.checked;
+        privateLeagueEntry.disabled = !isChecked;
+        leagueMenu.disabled = isChecked;
+        deepSearchCheck.disabled = isChecked;
+        if (isChecked) deepSearchCheck.checked = false;
+    });
+
+    ascendancyMenu.addEventListener('change', () => {
+        showMoreButton.style.display = ascendancyMenu.value === "All" ? 'none' : 'block';
+    });
+
+    fetchButton.addEventListener('click', () => {
+        state.allFetchedEntries = [];
+        state.currentOffset = 0;
+        state.currentLimit = 10;
+        fetchAndDisplayData();
+    });
+
+    showMoreButton.addEventListener('click', () => {
+        state.currentLimit += 20;
+        fetchAndDisplayData(); // Re-run fetch to get more data if needed
+    });
+
+    searchButton.addEventListener('click', searchCharacter);
+    stopButton.addEventListener('click', () => {
+        if (state.stopSearchController) state.stopSearchController.abort();
+    });
+}
+
+// --- Data Processor ---
+function processLadderData(entries, selectedAscendancy, limit) {
+    const ascendancyCounts = {};
+    const filteredEntries = [];
+
+    // Sort all entries by global rank first to ensure correct ascendancy ranking
+    entries.sort((a, b) => a.rank - b.rank);
+
+    for (const entry of entries) {
+        const charClass = entry.character.class;
+        ascendancyCounts[charClass] = (ascendancyCounts[charClass] || 0) + 1;
+
+        if (!selectedAscendancy || charClass === selectedAscendancy) {
+            filteredEntries.push({
+                ascendancy: charClass,
+                level: entry.character.level,
+                name: entry.character.name,
+                global_rank: entry.rank,
+                asc_rank: ascendancyCounts[charClass]
+            });
+        }
+    }
+
+    if (selectedAscendancy) {
+        return filteredEntries.slice(0, limit);
+    }
+
+    const finalResults = [];
+    const processedCounts = {};
+    ALL_ASCENDANCY_NAMES.forEach(asc => processedCounts[asc] = 0);
+
+    for (const entry of filteredEntries) {
+        if (processedCounts[entry.ascendancy] < limit) {
+            finalResults.push(entry);
+            processedCounts[entry.ascendancy]++;
+        }
+    }
+    return finalResults.sort((a, b) => a.ascendancy.localeCompare(b.ascendancy) || a.asc_rank - b.asc_rank);
+}
+
+// Polyfill for String.center
+String.prototype.center = function (width, char = ' ') {
+    const length = this.length;
+    if (length >= width) return this.toString();
+    const left = Math.floor((width - length) / 2);
+    const right = width - length - left;
+return char.repeat(left) + this + char.repeat(right);
+};
+
+// --- App Start ---
+document.addEventListener('DOMContentLoaded', initializeApp);

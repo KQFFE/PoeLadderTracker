@@ -25,14 +25,13 @@ API_BASE_URL = "https://api.pathofexile.com"
 # seems to require different tokens for different services.
 token_cache = {}
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', template_folder='.')
 
 # --- Web App Routes ---
 
 @app.route('/')
 def index():
     """Serves the main HTML page of the web application."""
-    # This assumes you have an 'index.html' in a 'templates' folder.
     return render_template('index.html')
 
 @app.route('/static/<path:path>')
@@ -52,7 +51,7 @@ def get_access_token(scope="service:leagues"):
 
     print(f"PROXY: Requesting new GGG access token for scope: '{scope}'")
     headers = {
-        "User-Agent": f"OAuth2.0-Client/{CLIENT_ID} ({CONTACT_EMAIL})",
+        "User-Agent": f"OAuth2.0-Client/{CLIENT_ID} (contact: {CONTACT_EMAIL})",
         "Content-Type": "application/x-www-form-urlencoded"
     }
     # A standard dictionary payload with a single scope.
@@ -97,7 +96,7 @@ def proxy_leagues():
 
     headers = {
         "Authorization": f"Bearer {token}",
-        "User-Agent": f"OAuth2.0-Client/{CLIENT_ID} ({CONTACT_EMAIL})"
+        "User-Agent": f"OAuth {CLIENT_ID}/1.0.0 (contact: {CONTACT_EMAIL})"
     }
     try:
         # Implement retry logic for rate limiting
@@ -113,11 +112,13 @@ def proxy_leagues():
             response.raise_for_status() # Raise an exception for other bad statuses
             # Explicitly parse the response from GGG and extract the 'result' list.
             # The GGG API returns an object like {"result": [...]}.
-            leagues_list = response.json()
-            if not isinstance(leagues_list, list):
+            leagues_data = response.json()
+            # Add logging to see the actual response from GGG
+            # The /leagues endpoint returns a direct list, not an object with a 'result' key.
+            if not isinstance(leagues_data, list):
                 # This handles cases where the API might change or return an error object
                 raise TypeError("GGG API response for leagues was not a list as expected.")
-            return jsonify({"result": leagues_list})
+            return jsonify(leagues_data)
 
         # If all retries fail, return the last error response
         return jsonify({"error": "Rate limit exceeded after multiple retries"}), 429
@@ -142,7 +143,7 @@ def proxy_ladder(league_id):
     url = f"{API_BASE_URL}/ladder/{league_id}?limit={limit}&offset={offset}"
     headers = {
         "Authorization": f"Bearer {token}",
-        "User-Agent": f"OAuth2.0-Client/{CLIENT_ID} ({CONTACT_EMAIL})"
+        "User-Agent": f"OAuth {CLIENT_ID}/1.0.0 (contact: {CONTACT_EMAIL})"
     }
     try:
         response = requests.get(url, headers=headers)
