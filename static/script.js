@@ -1,6 +1,7 @@
 // This script will replicate the logic from your gui.py file.
 
 const CHUNK_SIZE = 200;
+const MAX_SEARCH_ENTRIES = 20000; // Corresponds to _should_stop_fetching limit
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- Element References ---
@@ -22,7 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let allFetchedEntries = [];
     let currentLimit = 20;
     let currentOffset = 0;
-    let stopFlag = false;
+    let stopFlag = false; // Flag to stop ongoing fetches/searches
 
     const ALL_ASCENDANCY_NAMES = [
         "Ascendant", "Assassin", "Berserker", "Champion", "Chieftain",
@@ -44,23 +45,41 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadLeagues() {
+        // Disable buttons until leagues are loaded
+        fetchButton.disabled = true;
+        searchButton.disabled = true;
         try {
             const response = await fetch('/leagues');
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            const leagues = await response.json();
+            const responseData = await response.json(); // This is the Flask jsonify output
+            const leagues = responseData.result; // The actual list of leagues is inside the 'result' key
 
+            if (!leagues) throw new Error("API response did not contain a 'result' array.");
+            
             allLeaguesData = leagues;
             leagueMenu.innerHTML = ''; // Clear "fetching..."
+            // Sort leagues alphabetically by their display text
+            // This sort is now robust and handles malformed entries from the API.
+            leagues.sort((a, b) => {
+                const textA = a?.text || ''; // Safely access 'text' or default to empty string
+                const textB = b?.text || ''; // Safely access 'text' or default to empty string
+                return textA.localeCompare(textB);
+            });
+
             leagues.forEach(league => {
                 const option = document.createElement('option');
-                // The API gives us 'id' and 'text'. We'll use 'text' for display.
+                // The API gives us 'id' and 'text'. We'll use 'text' for the user-facing display.
                 option.value = league.text;
                 option.textContent = league.text;
                 leagueMenu.appendChild(option);
             });
+            // Re-enable buttons now that leagues are loaded
+            fetchButton.disabled = false;
+            searchButton.disabled = false;
         } catch (error) {
             console.error("Error fetching leagues:", error);
             leagueMenu.innerHTML = '<option>Error fetching leagues</option>';
+            // Keep buttons disabled if there's an error
         }
     }
 
@@ -70,6 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
         leagueMenu.disabled = privateLeagueCheck.checked;
         privateLeagueEntry.disabled = !privateLeagueCheck.checked;
         if (privateLeagueCheck.checked) {
+            // If private league is checked, deep search is not possible
             deepSearchCheck.checked = false; // Deep search is for public leagues
         }
     });
@@ -77,6 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
     deepSearchCheck.addEventListener('change', () => {
         if (deepSearchCheck.checked) {
             privateLeagueCheck.checked = false;
+            // If deep search is checked, private league entry is disabled
             leagueMenu.disabled = false;
             privateLeagueEntry.disabled = true;
         }
@@ -107,14 +128,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const league = allLeaguesData.find(l => l.text === selectedName);
         // The authenticated API needs the 'id', the public one can use the name.
         // We'll always try to return the ID if we can find it.
-        return league ? league.id : selectedName; 
+        return league ? league.id : selectedName;
     }
 
     function setButtonsState(isFetching) {
         fetchButton.disabled = isFetching;
         searchButton.disabled = isFetching;
         stopButton.disabled = !isFetching;
-        showMoreButton.disabled = isFetching || ascendancyMenu.value === "All";
+        // Show More button is enabled only if not fetching and not "All" ascendancies
+        showMoreButton.disabled = isFetching || (ascendancyMenu.value === "All");
+    }
+
+    function updateStatusBar(message, isError = false) {
+        statusBar.textContent = message;
+        statusBar.style.color = isError ? 'red' : '#6c757d';
+        if (isError) console.error(message);
+        else console.log(message);
     }
 
     function resetButtonStates() {
@@ -122,10 +151,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function formatResults(results, leagueName) {
-        const header = `✅ ASCENDANCY STANDINGS ✅`;
-        const leagueLine = `League: ${leagueName}`;
-        const separator = "-".repeat(90);
-
+        const width = 90;
+        const header = `✅ ASCENDANCY STANDINGS ✅`.padStart(width / 2 + 15); // Adjust for emoji
+        const leagueLine = `League: ${leagueName}`.padStart(width / 2 + leagueName.length / 2);
+        const separator = "-".repeat(width);
         let output = `${separator}\n${header.padStart(45 + header.length/2)}\n${leagueLine.padStart(45 + leagueLine.length/2)}\n${separator}\n`;
         output += `ASCENDANCY\tLEVEL\tCHARACTER NAME\tRANK (Asc/Global)\n`;
         output += `${separator}\n`;
@@ -133,10 +162,10 @@ document.addEventListener('DOMContentLoaded', () => {
         let lastAscendancy = null;
         for (const char of results) {
             if (lastAscendancy && char.ascendancy !== lastAscendancy) {
-                output += `${separator}\n`;
+                output += `\n`; // Just a newline for separation between ascendancies
             }
             const rankStr = `${char.asc_rank} / ${char.global_rank}`;
-            output += `${char.ascendancy}\t${char.level}\t${char.name}\t${rankStr}\n`;
+            output += `${char.ascendancy.padEnd(15)}\t${String(char.level).padEnd(5)}\t${char.name.padEnd(25)}\t${rankStr}\n`;
             lastAscendancy = char.ascendancy;
         }
         output += `${separator}\n`;
@@ -149,13 +178,14 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch(url);
             if (!response.ok) {
-                console.error(`API Error: ${response.statusText}`);
+                const errorData = await response.json();
+                updateStatusBar(`API Error: ${response.status} - ${errorData.error || response.statusText}`, true);
                 return null;
             }
             return await response.json();
         } catch (error) {
-            console.error("Network error fetching ladder:", error);
-            return null;
+            updateStatusBar(`Network error fetching ladder: ${error.message}`, true);
+            return null; // Return null on network errors
         }
     }
 
@@ -163,20 +193,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function startFetch() {
         allFetchedEntries = [];
-        currentOffset = 0;
+        currentOffset = 0; // Reset offset for new fetch
         currentLimit = 20;
         fetchAndDisplayData();
     }
 
     function showMore() {
         currentLimit += 50;
-        fetchAndDisplayData();
+        fetchAndDisplayData(true); // Indicate that this is a "show more" action
     }
 
-    async function fetchAndDisplayData() {
+    async function fetchAndDisplayData(isShowMore = false) {
         setButtonsState(true);
-        stopFlag = false;
-        statusBar.textContent = "Fetching data...";
+        stopFlag = false; // Clear stop flag for new operation
+        updateStatusBar("Fetching data...");
         resultsTextbox.textContent = "";
 
         const leagueName = getSelectedLeagueName();
@@ -184,10 +214,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const ascendancy = ascendancyMenu.value === "All" ? null : ascendancyMenu.value;
 
         // This is a simplified version of the Python fetching loop.
-        // A full implementation would check _should_stop_fetching inside the loop.
-        while (!stopFlag && currentOffset < 20000) {
-            statusBar.textContent = `Fetching characters ${currentOffset} to ${currentOffset + CHUNK_SIZE}...`;
+        while (!stopFlag && currentOffset < MAX_SEARCH_ENTRIES) {
+            updateStatusBar(`Fetching characters ${currentOffset} to ${currentOffset + CHUNK_SIZE}...`);
             const data = await apiFetchLadder(leagueId, currentOffset, deepSearchCheck.checked);
+            if (stopFlag) break; // Check stopFlag again after API call
 
             if (stopFlag) break;
             if (!data || !data.entries || data.entries.length === 0) {
@@ -196,20 +226,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
             allFetchedEntries.push(...data.entries);
             currentOffset += CHUNK_SIZE;
+            
+            // Sort by rank to maintain order (important for accurate ascendancy ranks)
+            allFetchedEntries.sort((a, b) => a.rank - b.rank);
 
             // Live update for "All" ascendancies
             if (!ascendancy) {
                 const processed = processLadderData(allFetchedEntries, null, currentLimit);
                 resultsTextbox.textContent = formatResults(processed, leagueName);
             }
-
             await new Promise(resolve => setTimeout(resolve, 250)); // Respect rate limits
         }
 
         // Final update
         const processed = processLadderData(allFetchedEntries, ascendancy, currentLimit);
         resultsTextbox.textContent = formatResults(processed, leagueName);
-        statusBar.textContent = `Done. Showing top ${currentLimit} for ${ascendancy || 'all ascendancies'}.`;
+        updateStatusBar(`Done. Showing top ${currentLimit} for ${ascendancy || 'all ascendancies'}.`);
         resetButtonStates();
     }
 
@@ -261,15 +293,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // This is a simplified JS version of your data_processor.py
     function processLadderData(entries, selectedAscendancy, limit) {
-        // This is a placeholder. A full implementation would replicate the Python logic.
-        const filtered = selectedAscendancy ? entries.filter(e => e.character.class === selectedName) : entries;
-        return filtered.slice(0, limit).map(e => ({
-            ascendancy: e.character.class,
-            level: e.character.level,
-            name: e.character.name,
-            global_rank: e.rank,
-            asc_rank: 'N/A' // Ascendancy rank calculation is complex for the frontend
-        }));
+        const ascendanciesToProcess = selectedAscendancy ? [selectedAscendancy] : ALL_ASCENDANCY_NAMES;
+        const ascendancyGroups = {};
+        ascendanciesToProcess.forEach(asc => ascendancyGroups[asc] = []);
+
+        // 1. Core Grouping Logic
+        // We need to re-calculate ascendancy ranks based on the full, sorted list of entries.
+        const tempAscendancyCounts = {};
+        ALL_ASCENDANCY_NAMES.forEach(asc => tempAscendancyCounts[asc] = 0);
+
+        for (const entry of entries) {
+            const charData = entry.character;
+            const ascendancy = charData.class;
+
+            if (ascendancy in tempAscendancyCounts) {
+                tempAscendancyCounts[ascendancy]++;
+                const ascRank = tempAscendancyCounts[ascendancy];
+
+                const characterInfo = {
+                    ascendancy: ascendancy,
+                    level: charData.level,
+                    xp: charData.experience,
+                    name: charData.name,
+                    global_rank: entry.rank,
+                    asc_rank: ascRank
+                };
+
+                if (ascendancyGroups[ascendancy] && ascendancyGroups[ascendancy].length < limit) {
+                    ascendancyGroups[ascendancy].push(characterInfo);
+                }
+            }
+        }
+
+        // 2. Final Consolidation and Sorting
+        let finalLadderList = [];
+        for (const ascList of Object.values(ascendancyGroups)) {
+            finalLadderList.push(...ascList);
+        }
+
+        // Sort by ascendancy name, then by ascendancy rank
+        finalLadderList.sort((a, b) => {
+            if (a.ascendancy < b.ascendancy) return -1;
+            if (a.ascendancy > b.ascendancy) return 1;
+            return a.asc_rank - b.asc_rank;
+        });
+
+        return finalLadderList;
     }
 
     // --- Main Execution ---

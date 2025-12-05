@@ -118,24 +118,23 @@ class App(customtkinter.CTk):
 
     def _get_league_id_from_name(self, league_name_or_id):
         """
-        Attempts to find the GGG API 'id' for a given league name or ID from the cached league data.
-        Returns the 'id' if found, otherwise returns the original input (which might be an ID itself).
-        This is crucial because the public dropdown shows the 'text' (display name), but the API needs the 'id'.
+        Finds the GGG API 'id' for a league name from cached data.
+        The proxy needs the 'id' for authenticated requests.
         """
         for league in self.all_leagues_data:
-            # Check against both 'id' and 'text' (display name)
             if league.get('id') == league_name_or_id or league.get('text') == league_name_or_id:
                 return league['id']
-        # If no match is found, return None to indicate an invalid league.
-        return None
+        return league_name_or_id # Fallback for private leagues
 
     def toggle_private_league(self):
         if self.private_league_check.get() == 1: # Checked
             self.league_menu.configure(state="disabled")
+            self.deep_search_check.deselect()
             self.private_league_entry.configure(state="normal")
         else: # Unchecked
             # Re-enable only if leagues were successfully loaded
             self.league_menu.configure(state="normal")
+            self.deep_search_check.configure(state="normal")
             self.private_league_entry.configure(state="disabled")
 
     def on_ascendancy_change(self, choice):
@@ -147,28 +146,32 @@ class App(customtkinter.CTk):
     def on_deep_search_toggle(self, event=None):
         if self.private_league_check.get() == 1:
             self.deep_search_check.deselect()
-            return "break" # Prevents the checkbox from changing state
+            return "break"
 
     def load_leagues(self):
         def update_ui(leagues_data):
-            # The GGG API returns a list of league objects, each with an 'id' and 'text'.
-            # We should store the full data for lookups but display the more readable 'text'.
-            if leagues_data and isinstance(leagues_data, list):
-                league_display_names = [league.get('text', league['id']) for league in leagues_data]
-                self.all_leagues_data = leagues_data # Store the full data for lookup
+            # The proxy now returns the list of leagues directly.
+            leagues = leagues_data if isinstance(leagues_data, list) else None
+
+            if leagues and isinstance(leagues, list):
+                # The proxy filters to PC leagues; we just need to display them.
+                self.all_leagues_data = leagues # Store full data for ID lookup
+                league_display_names = [league.get('text', league['id']) for league in leagues]
                 self.league_menu.configure(values=league_display_names)
+
                 if league_display_names:
                     self.league_menu.set(league_display_names[0])
             else:
+                print("Error: Could not parse leagues from API response.")
                 self.league_menu.configure(values=["Error fetching leagues"])
                 self.league_menu.set("Error fetching leagues")
                 self.all_leagues_data = [] # Clear data on error
 
         def task():
+            self.status_label.configure(text="Fetching leagues...")
             leagues = GGGAPIClient.fetch_leagues()
             self.after(0, update_ui, leagues)
-        
-        thread = threading.Thread(target=task)
+        thread = threading.Thread(target=task, daemon=True)
         thread.start()
 
     def start_fetch_thread(self):
@@ -189,13 +192,13 @@ class App(customtkinter.CTk):
         self.status_label.configure(text="Fetching data...")
         self.textbox.delete("1.0", "end")
         
-        thread = threading.Thread(target=self.fetch_and_display_data)
+        thread = threading.Thread(target=self.fetch_and_display_data, daemon=True)
         thread.start()
 
     def _should_stop_fetching(self, ascendancy):
         """Helper to determine if the data fetching loop should stop."""
-        # Stop condition for any fetch reaching the desired search depth limit
-        if self.current_offset >= 20000:
+        # Stop if we hit the GGG API limit for a single search
+        if self.current_offset >= 15000:
             return True
 
         # Stop condition for a single ascendancy when enough have been found
@@ -215,28 +218,34 @@ class App(customtkinter.CTk):
         self.textbox.delete("1.0", "end")
         self.textbox.insert("1.0", output)
 
+    def update_textbox_and_scroll(self, output):
+        """Updates the textbox and scrolls to the end."""
+        self.update_textbox(output)
+        self.textbox.see("end")
+
     def fetch_and_display_data(self):
         selected_league_input = self.get_selected_league()
-        # Always resolve the selected name (from dropdown or entry) to its proper GGG API ID.
-        # This is the key to making the authenticated endpoint work.
-        league_id = self._get_league_id_from_name(selected_league_input)
+        deep_search = self.deep_search_check.get() == 1
+
+        # For deep search, we must resolve the name to the GGG ID for the proxy.
+        league_id = self._get_league_id_from_name(selected_league_input) if deep_search else selected_league_input
+
         if not league_id:
             self.status_label.configure(text=f"Error: League '{selected_league_input}' not found.")
             return
-        
-        deep_search = self.deep_search_check.get() == 1
+
         ascendancy = self.ascendancy_menu.get()
         if ascendancy == "All":
             ascendancy = None
 
         while True:
-            if self.stop_search_event.is_set() or self._should_stop_fetching(ascendancy):
-                break
-
+            if self._should_stop_fetching(ascendancy): break
             self.status_label.configure(text=f"Fetching characters {self.current_offset} to {self.current_offset + CHUNK_SIZE}...")
             data = GGGAPIClient.fetch_ladder(league_id, limit=CHUNK_SIZE, offset=self.current_offset, deep_search=deep_search)
             
-            if data is None: break # API error occurred
+            if data is None:
+                self.status_label.configure(text="Error: Failed to fetch ladder data from API.")
+                break
             
             entries = data.get('entries', [])
             if not entries: break # No more entries to fetch
@@ -247,17 +256,21 @@ class App(customtkinter.CTk):
             # Live update for "All" ascendancies
             if not ascendancy:
                 final_results = process_ladder_data(self.all_fetched_entries, selected_ascendancy=ascendancy, limit=self.current_limit)
-                output = self.format_results(final_results, selected_league_input) # Show display name
+                output = self.format_results(final_results, selected_league_input)
                 self.after(0, self.update_textbox, output)
 
             # Add a small delay to respect API rate limits
-            time.sleep(0.25)
+            time.sleep(0.5)
         
         # Final update for single ascendancy
         if ascendancy:
             final_results = process_ladder_data(self.all_fetched_entries, selected_ascendancy=ascendancy, limit=self.current_limit)
-            output = self.format_results(final_results, selected_league_input) # Show display name
-            self.after(0, self.update_textbox, output)
+            output = self.format_results(final_results, selected_league_input)
+            # If the limit is greater than the initial fetch, it means "Show More" was used.
+            if self.current_limit > 20:
+                self.after(0, self.update_textbox_and_scroll, output)
+            else:
+                self.after(0, self.update_textbox, output)
 
         self.status_label.configure(text=f"Done. Showing top {self.current_limit} for {ascendancy if ascendancy else 'all ascendancies'}.")
         self.fetch_button.configure(state="normal")
@@ -305,7 +318,7 @@ class App(customtkinter.CTk):
         self.textbox.delete("1.0", "end")
 
         self.stop_search_event.clear()
-        thread = threading.Thread(target=self.search_character)
+        thread = threading.Thread(target=self.search_character, daemon=True)
         thread.start()
 
     def stop_search(self):
@@ -313,45 +326,46 @@ class App(customtkinter.CTk):
 
     def search_character(self):
         selected_league_input = self.get_selected_league()
-        # Always resolve the selected name (from dropdown or entry) to its proper GGG API ID.
-        league_id = self._get_league_id_from_name(selected_league_input)
+        deep_search = self.deep_search_check.get() == 1
+
+        # Resolve name to ID for deep search
+        league_id = self._get_league_id_from_name(selected_league_input) if deep_search else selected_league_input
+
         if not league_id:
             self.status_label.configure(text=f"Error: League '{selected_league_input}' not found.")
             return
 
-        start_time = time.time()
         char_name_to_find = self.char_name_entry.get()
-        
-        current_offset = 0
-        
-        # --- NEW: Search already fetched data first ---
+        # --- 1. Search already fetched data first for an instant result ---
         # Check if the character exists in the data we've already downloaded.
         if self.all_fetched_entries:
             self.status_label.configure(text=f"Searching {len(self.all_fetched_entries)} pre-fetched entries...")
-            ascendancy_counts_local = {asc: 0 for asc in ALL_ASCENDANCY_NAMES}
+            # We need to calculate the ascendancy rank within the local data
+            local_ascendancy_counts = {asc: 0 for asc in ALL_ASCENDANCY_NAMES}
             for entry in self.all_fetched_entries:
                 char_data = entry['character']
                 ascendancy = char_data['class']
-                if ascendancy in ascendancy_counts_local:
-                    ascendancy_counts_local[ascendancy] += 1
+                if ascendancy in local_ascendancy_counts:
+                    local_ascendancy_counts[ascendancy] += 1
                 
                 if char_data['name'] == char_name_to_find:
-                    # Character found in local data!
-                    asc_rank = ascendancy_counts_local[ascendancy]
+                    # Character found in the locally cached data!
+                    asc_rank = local_ascendancy_counts[ascendancy]
                     result = f"Character Found (in pre-fetched data):\n"
                     result += f"  Name: {char_data['name']}\n"
                     result += f"  Level: {char_data['level']}\n"
                     result += f"  Class: {ascendancy}\n"
                     result += f"  ---\n"
                     result += f"  Global Rank: {entry['rank']}\n"
-                    result += f"  Ascendancy Rank: {asc_rank}"
+                    result += f"  Ascendancy Rank (in fetched list): {asc_rank}"
                     self.after(0, self.update_textbox, result)
                     self.after(0, self.status_label.configure, {"text": f"Search complete. Found {char_name_to_find} locally."})
-                    self.after(0, self.reset_button_states) # Re-enable buttons
-                    return # Stop the function here
+                    self.after(0, self.reset_button_states)
+                    return # Exit the function since we found the character
 
-        global_rank = 0
-        ascendancy_rank = 0
+        # --- 2. If not found locally, start a full remote search ---
+        # Reset state for a new search. This is crucial.
+        current_offset = 0
         found_char = None
         ascendancy_counts = {asc: 0 for asc in ALL_ASCENDANCY_NAMES}
 
@@ -363,13 +377,12 @@ class App(customtkinter.CTk):
             if self.stop_search_event.is_set():
                 break # Manual stop
 
-            self.after(0, self.status_label.configure, {"text": f"Searching... Scanned {global_rank} characters so far."})
-            # Use the new API client to fetch a chunk of data
-            data = GGGAPIClient.fetch_ladder(league_id, limit=CHUNK_SIZE, offset=current_offset, deep_search=self.deep_search_check.get() == 1)
+            self.after(0, self.status_label.configure, {"text": f"Searching... Scanned {current_offset} characters so far."})
+            data = GGGAPIClient.fetch_ladder(league_id, limit=CHUNK_SIZE, offset=current_offset, deep_search=deep_search)
 
-            is_private_league = self.private_league_check.get() == 1
             is_first_fetch = current_offset == 0
-
+            is_private_league = self.private_league_check.get() == 1
+            
             # Check for invalid private league name on the first fetch.
             if is_first_fetch and (data is None or not data.get('entries')):
                 error_message = f"❌ Error: League '{selected_league_input}' not found or is empty.\nPlease check the name and try again."
@@ -379,17 +392,14 @@ class App(customtkinter.CTk):
             if data is None: 
                 self.after(0, self.update_textbox, "Error fetching ladder data.")
                 break # API error
-            
             entries = data.get('entries', [])
             if not entries: 
                 # Reached the end of the ladder
                 found_char = None # Ensure found_char is None
                 break 
-
             for entry in entries:
                 if self.stop_search_event.is_set():
                     break
-                global_rank += 1
                 char_data = entry['character']
                 ascendancy = char_data['class']
                 
@@ -398,37 +408,36 @@ class App(customtkinter.CTk):
 
                 if char_data['name'] == char_name_to_find:
                     found_char = char_data
-                    ascendancy_rank = ascendancy_counts[ascendancy]
+                    found_char['global_rank'] = entry['rank']
+                    found_char['ascendancy_rank'] = ascendancy_counts.get(ascendancy)
                     break
             
             if found_char:
                 break
 
             current_offset += CHUNK_SIZE
-
-            # Timeout check
-            if time.time() - start_time > 120: # Increased timeout to 2 minutes for deeper searches
-                self.after(0, self.status_label.configure, {"text": "Search timed out after 60 seconds."})
-                self.after(0, self.update_textbox, f"Search for '{char_name_to_find}' timed out after 60 seconds.\nThe character may be very far down the ladder.")
-                found_char = "timeout" # Special state to indicate timeout
-                break
+            if current_offset >= 15000 and not deep_search:
+                break # Stop public search at 15k
+            
+            # Add a small delay to respect API rate limits
+            time.sleep(0.5)
 
         if self.stop_search_event.is_set():
             self.after(0, self.status_label.configure, {"text": "Search stopped."})
             self.after(0, self.update_textbox, "Search was cancelled.")
         elif found_char:
-            if found_char != "timeout": # Check that we didn't time out
-                result = f"Character Found:\n"
-                result += f"  Name: {found_char['name']}\n"
-                result += f"  Level: {found_char['level']}\n"
-                result += f"  Class: {found_char['class']}\n"
-                result += f"  ---\n"
-                result += f"  Global Rank: {global_rank}\n"
-                result += f"  Ascendancy Rank: {ascendancy_rank}"
-                self.after(0, self.update_textbox, result)
-                self.after(0, self.status_label.configure, {"text": f"Search complete. Found {char_name_to_find}."})
+            result = f"Character Found:\n"
+            result += f"  Name: {found_char['name']}\n"
+            result += f"  Level: {found_char['level']}\n"
+            result += f"  Class: {found_char['class']}\n\n"
+            result += f"  ---\n"
+            result += f"  Global Rank: {found_char['global_rank']}\n"
+            result += f"  Ascendancy Rank: {found_char['ascendancy_rank']}"
+            self.after(0, self.update_textbox, result)
+            self.after(0, self.status_label.configure, {"text": f"Search complete. Found {char_name_to_find}."})
         elif found_char is None: # Only show "not found" if the search completed without finding the char
-            self.after(0, self.update_textbox, f"Character '{char_name_to_find}' not found after scanning {global_rank} entries.")
+            message = f"Character '{char_name_to_find}' not found after scanning {current_offset} entries."
+            self.after(0, self.update_textbox, message)
             self.after(0, self.status_label.configure, {"text": "Search complete. Character not found."})
 
         self.after(0, self.reset_button_states)

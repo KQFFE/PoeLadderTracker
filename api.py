@@ -13,7 +13,7 @@ class GGGAPIClient:
         """Makes a request to the proxy server."""
         url = f"{PROXY_BASE_URL}/{endpoint}"
         try:
-            response = requests.get(url)
+            response = requests.get(url, timeout=15) # Add a 15-second timeout
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:

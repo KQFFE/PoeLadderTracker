@@ -111,7 +111,13 @@ def proxy_leagues():
                 continue # Go to the next attempt
             
             response.raise_for_status() # Raise an exception for other bad statuses
-            return jsonify(response.json()) # Success
+            # Explicitly parse the response from GGG and extract the 'result' list.
+            # The GGG API returns an object like {"result": [...]}.
+            leagues_list = response.json()
+            if not isinstance(leagues_list, list):
+                # This handles cases where the API might change or return an error object
+                raise TypeError("GGG API response for leagues was not a list as expected.")
+            return jsonify({"result": leagues_list})
 
         # If all retries fail, return the last error response
         return jsonify({"error": "Rate limit exceeded after multiple retries"}), 429
