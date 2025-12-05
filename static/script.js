@@ -1,7 +1,8 @@
 // --- Configuration ---
-// site url https://poeladdertracker.xyz/
-// check local url when running proxy server
-const PROXY_BASE_URL = "https://poeladdertracker.xyz/"; 
+// By setting the base URL to an empty string, the browser will automatically
+// use the current origin (e.g., "http://127.0.0.1:5000" locally, or
+// "https://poeladdertracker.xyz" in production) for API requests.
+const PROXY_BASE_URL = "";
 const ALL_ASCENDANCY_NAMES = [
     "Slayer", "Gladiator", "Champion", "Assassin", "Saboteur", "Trickster", "Juggernaut", "Berserker", "Chieftain",
     "Necromancer", "Occultist", "Elementalist", "Deadeye", "Raider", "Pathfinder", "Inquisitor", "Hierophant",

@@ -150,8 +150,9 @@ class App(customtkinter.CTk):
 
     def load_leagues(self):
         def update_ui(leagues_data):
-            # The proxy returns a JSON object with a 'result' key containing the leagues.
-            leagues = leagues_data.get('result') if isinstance(leagues_data, dict) else None
+            # The proxy returns a direct JSON list of leagues.
+            # We assign it directly and check if it's a valid list.
+            leagues = leagues_data
 
             if leagues and isinstance(leagues, list):
                 # The proxy filters to PC leagues; we just need to display them.
