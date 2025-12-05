@@ -18,7 +18,7 @@ class App(customtkinter.CTk):
         self.grid_rowconfigure(2, weight=1)
 
         self.stop_search_event = threading.Event()
-        self.current_limit = 20
+        self.current_limit = 10
         self.all_fetched_entries = []
         self.current_offset = 0
         self.all_leagues_data = [] # To store full league objects for ID lookup
@@ -150,8 +150,8 @@ class App(customtkinter.CTk):
 
     def load_leagues(self):
         def update_ui(leagues_data):
-            # The proxy now returns the list of leagues directly.
-            leagues = leagues_data if isinstance(leagues_data, list) else None
+            # The proxy returns a JSON object with a 'result' key containing the leagues.
+            leagues = leagues_data.get('result') if isinstance(leagues_data, dict) else None
 
             if leagues and isinstance(leagues, list):
                 # The proxy filters to PC leagues; we just need to display them.
@@ -165,6 +165,9 @@ class App(customtkinter.CTk):
                 print("Error: Could not parse leagues from API response.")
                 self.league_menu.configure(values=["Error fetching leagues"])
                 self.league_menu.set("Error fetching leagues")
+                # Disable buttons if leagues fail to load
+                self.fetch_button.configure(state="disabled")
+                self.search_button.configure(state="disabled")
                 self.all_leagues_data = [] # Clear data on error
 
         def task():
@@ -175,7 +178,7 @@ class App(customtkinter.CTk):
         thread.start()
 
     def start_fetch_thread(self):
-        self.current_limit = 20
+        self.current_limit = 10
         self.all_fetched_entries = []
         self.current_offset = 0
         self.fetch_and_display_data_thread()
@@ -267,7 +270,7 @@ class App(customtkinter.CTk):
             final_results = process_ladder_data(self.all_fetched_entries, selected_ascendancy=ascendancy, limit=self.current_limit)
             output = self.format_results(final_results, selected_league_input)
             # If the limit is greater than the initial fetch, it means "Show More" was used.
-            if self.current_limit > 20:
+            if self.current_limit > 10:
                 self.after(0, self.update_textbox_and_scroll, output)
             else:
                 self.after(0, self.update_textbox, output)
