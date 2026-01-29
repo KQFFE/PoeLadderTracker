@@ -1,13 +1,24 @@
 import os
+import sys
 import requests
 import time
 from flask import Flask, jsonify, request, render_template, send_from_directory
 from dotenv import load_dotenv
 from urllib.parse import urlencode
 
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
 # Load environment variables from a .env file if it exists.
 # This should be called before accessing any environment variables.
-load_dotenv()
+load_dotenv(resource_path('.env'))
  
 # --- Configuration ---
 # For a real server, set these as environment variables for security.
@@ -25,7 +36,7 @@ API_BASE_URL = "https://api.pathofexile.com"
 # seems to require different tokens for different services.
 token_cache = {}
 
-app = Flask(__name__, static_folder='static', template_folder='.')
+app = Flask(__name__, static_folder=resource_path('static'), template_folder=resource_path('.'))
 
 # --- Web App Routes ---
 
@@ -38,7 +49,7 @@ def index():
 def send_static(path):
     """Serves static files like CSS and JavaScript."""
     # This assumes you have your css/js in a 'static' folder.
-    return send_from_directory('static', path)
+    return send_from_directory(app.static_folder, path)
 
 @app.route('/popout.html')
 def popout():
