@@ -423,19 +423,28 @@ class App(customtkinter.CTk):
             # We assign it directly and check if it's a valid list.
             leagues = leagues_data
 
-            if leagues and isinstance(leagues, list):
+            if isinstance(leagues, list):
                 # The proxy filters to PC leagues; we just need to display them.
                 self.all_leagues_data = leagues # Store full data for ID lookup
                 league_display_names = [league.get('text', league['id']) for league in leagues]
+                league_display_names.sort()
                 self.league_menu.configure(values=league_display_names)
 
                 if league_display_names:
                     self.league_menu.set(league_display_names[0])
+                self.status_label.configure(text="Ready.")
+            elif isinstance(leagues, dict) and 'error' in leagues:
+                error_message = leagues.get('message', 'An unknown API error occurred.')
+                self.status_label.configure(text=f"Error: {error_message}")
+                self.league_menu.configure(values=["Error: Check Status"])
+                self.league_menu.set("Error: Check Status")
+                self.fetch_button.configure(state="disabled")
+                self.search_button.configure(state="disabled")
+                self.all_leagues_data = [] # Clear data on error
             else:
                 print("Error: Could not parse leagues from API response.")
                 self.league_menu.configure(values=["Error fetching leagues"])
                 self.league_menu.set("Error fetching leagues")
-                # Disable buttons if leagues fail to load
                 self.fetch_button.configure(state="disabled")
                 self.search_button.configure(state="disabled")
                 self.all_leagues_data = [] # Clear data on error

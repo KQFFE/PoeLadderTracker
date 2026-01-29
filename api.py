@@ -25,9 +25,19 @@ class _GGGAPIClient:
             return response.json()
         except requests.exceptions.RequestException as e:
             print(f"API Client Error: Could not connect to proxy server to fetch leagues: {e}")
-            if isinstance(e, requests.exceptions.ConnectionError):
-                return {"error": "connection_failed", "message": f"Connection to proxy server at {PROXY_BASE_URL} failed. Is proxy_server.py running?"}
-            return {"error": "request_failed", "message": str(e)}
+            # Try to parse a JSON error from the response body first
+            if e.response is not None:
+                try:
+                    return e.response.json()
+                except requests.exceptions.JSONDecodeError:
+                    # If body is not JSON, create a generic HTTP error
+                    return {"error": "http_error", "message": f"Server returned status {e.response.status_code}"}
+            # Handle connection errors specifically
+            elif isinstance(e, requests.exceptions.ConnectionError):
+                return {"error": "connection_failed", "message": f"Connection to proxy at {PROXY_BASE_URL} failed. Is the internal server running?"}
+            # Fallback for other request exceptions
+            else:
+                return {"error": "request_failed", "message": str(e)}
 
     def fetch_ladder(self, league_id, limit=200, offset=0, deep_search=False):
         """
@@ -49,15 +59,19 @@ class _GGGAPIClient:
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            # Provide a more specific error if the proxy isn't running
-            if isinstance(e, requests.exceptions.ConnectionError):
-                 message = f"Connection to proxy server at {PROXY_BASE_URL} failed. Is proxy_server.py running?"
-                 print(f"API Client Error: {message}")
-                 return {"error": "connection_failed", "message": message}
+            print(f"API Client Error: Failed to fetch ladder data from proxy: {e}")
+            # Try to parse a JSON error from the response body first
+            if e.response is not None:
+                try:
+                    return e.response.json()
+                except requests.exceptions.JSONDecodeError:
+                    return {"error": "http_error", "message": f"Server returned status {e.response.status_code}"}
+            # Handle connection errors specifically
+            elif isinstance(e, requests.exceptions.ConnectionError):
+                return {"error": "connection_failed", "message": f"Connection to proxy at {PROXY_BASE_URL} failed. Is the internal server running?"}
+            # Fallback for other request exceptions
             else:
-                message = f"Failed to fetch ladder data from proxy: {e}"
-                print(f"API Client Error: {message}")
-                return {"error": "request_failed", "message": message}
+                return {"error": "request_failed", "message": str(e)}
 
 # Create a single instance of the client to be used throughout the application.
 # This is the "singleton" pattern. When other files import GGGAPIClient,

@@ -106,6 +106,12 @@ def get_access_token(scope="service:leagues"):
 @app.route('/leagues', methods=['GET'])
 def proxy_leagues():
     """Proxies the request to fetch all leagues."""
+    # Add a check for placeholder credentials before attempting to get a token.
+    if CLIENT_ID == "your_client_id_here" or CLIENT_SECRET == "your_client_secret_here":
+        error_msg = "Application is not configured with GGG API credentials. Please create a .env file."
+        print(f"PROXY: ERROR - {error_msg}")
+        return jsonify({"error": "configuration_error", "message": error_msg}), 503
+
     token = get_access_token() # Uses the default working scope
     if not token:
         return jsonify({"error": "Could not authenticate with GGG API"}), 500
