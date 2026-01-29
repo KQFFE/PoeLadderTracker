@@ -1,7 +1,8 @@
 import requests
 
 # This is the URL of your local proxy server.
-PROXY_BASE_URL = "http://127.0.0.1:5000"
+# PROXY_BASE_URL = "http://127.0.0.1:5000"
+PROXY_BASE_URL = "https://poeladdertracker.fly.dev" # Replace with your actual Fly.io URL
 
 class _GGGAPIClient:
     """
