@@ -146,9 +146,17 @@ def proxy_ladder(league_id):
         "User-Agent": f"OAuth {CLIENT_ID}/1.0.0 (contact: {CONTACT_EMAIL})"
     }
     try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        return jsonify(response.json())
+        for attempt in range(4):
+            response = requests.get(url, headers=headers)
+            if response.status_code == 429:
+                retry_after = response.headers.get("Retry-After")
+                wait_time = int(retry_after) + 1 if retry_after else 2 * (attempt + 1)
+                print(f"PROXY: Rate limit hit on /ladder. Waiting {wait_time}s...")
+                time.sleep(wait_time)
+                continue
+            response.raise_for_status()
+            return jsonify(response.json())
+        return jsonify({"error": "Rate limit exceeded after retries"}), 429
     except requests.exceptions.RequestException as e:
         print(f"PROXY: Error forwarding request to GGG /ladder: {e}")
         if e.response is not None:
@@ -163,9 +171,17 @@ def proxy_public_ladder(league_id):
     url = f"https://www.pathofexile.com/api/ladders/{league_id}?limit={limit}&offset={offset}"
     headers = {"User-Agent": f"PoeLadderTrackerProxy/1.0 (contact: {CONTACT_EMAIL})"}
     try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        return jsonify(response.json())
+        for attempt in range(4):
+            response = requests.get(url, headers=headers)
+            if response.status_code == 429:
+                retry_after = response.headers.get("Retry-After")
+                wait_time = int(retry_after) + 1 if retry_after else 2 * (attempt + 1)
+                print(f"PROXY: Rate limit hit on /public-ladder. Waiting {wait_time}s...")
+                time.sleep(wait_time)
+                continue
+            response.raise_for_status()
+            return jsonify(response.json())
+        return jsonify({"error": "Rate limit exceeded after retries"}), 429
     except requests.exceptions.RequestException as e:
         print(f"PROXY: Error forwarding request to public GGG /ladders: {e}")
         if e.response is not None:

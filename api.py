@@ -25,7 +25,9 @@ class _GGGAPIClient:
             return response.json()
         except requests.exceptions.RequestException as e:
             print(f"API Client Error: Could not connect to proxy server to fetch leagues: {e}")
-            return None
+            if isinstance(e, requests.exceptions.ConnectionError):
+                return {"error": "connection_failed", "message": f"Connection to proxy server at {PROXY_BASE_URL} failed. Is proxy_server.py running?"}
+            return {"error": "request_failed", "message": str(e)}
 
     def fetch_ladder(self, league_id, limit=200, offset=0, deep_search=False):
         """
@@ -49,10 +51,13 @@ class _GGGAPIClient:
         except requests.exceptions.RequestException as e:
             # Provide a more specific error if the proxy isn't running
             if isinstance(e, requests.exceptions.ConnectionError):
-                 print(f"API Client Error: Connection to proxy server at {PROXY_BASE_URL} failed. Is proxy_server.py running?")
+                 message = f"Connection to proxy server at {PROXY_BASE_URL} failed. Is proxy_server.py running?"
+                 print(f"API Client Error: {message}")
+                 return {"error": "connection_failed", "message": message}
             else:
-                print(f"API Client Error: Failed to fetch ladder data from proxy: {e}")
-            return None
+                message = f"Failed to fetch ladder data from proxy: {e}"
+                print(f"API Client Error: {message}")
+                return {"error": "request_failed", "message": message}
 
 # Create a single instance of the client to be used throughout the application.
 # This is the "singleton" pattern. When other files import GGGAPIClient,
