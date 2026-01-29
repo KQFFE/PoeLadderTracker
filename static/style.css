@@ -1,8 +1,7 @@
-/* Basic Dark Theme */
 body {
-    background-color: #242424;
-    color: #dce4ee;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #242424; /* Dark background */
+    color: #E0E0E0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     margin: 0;
     padding: 20px;
     display: flex;
@@ -11,112 +10,143 @@ body {
 
 .container {
     width: 100%;
-    max-width: 800px;
+    max-width: 700px;
 }
 
-h1 {
-    text-align: center;
-    color: #dbdbdb;
-}
+h1, h2, h3 { margin-top: 0; }
 
-/* Frames */
-.frame {
+.controls-frame {
     background-color: #2b2b2b;
-    border: 1px solid #3e3e3e;
-    border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 20px;
-    display: grid;
-    gap: 15px;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 15px;
 }
 
-#options-frame {
-    grid-template-columns: 1fr 1fr;
-}
-
-.grid-col {
-    display: flex;
-    flex-direction: column;
-}
-
-.grid-row {
-    grid-column: 1 / -1; /* Span both columns */
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-/* Form Elements */
-label {
-    margin-bottom: 5px;
-    font-size: 0.9em;
-    color: #a0a0a0;
-}
-
-input[type="text"], select {
-    background-color: #343638;
-    color: #dce4ee;
-    border: 1px solid #565b5f;
-    border-radius: 6px;
-    padding: 10px;
+.control-group { margin-bottom: 10px; }
+label { display: block; margin-bottom: 5px; font-weight: bold; color: #ccc; }
+select, input[type="text"] {
     width: 100%;
-    box-sizing: border-box; /* Important for padding */
+    padding: 8px;
+    background-color: #383838;
+    border: 1px solid #444;
+    color: white;
+    border-radius: 4px;
+    box-sizing: border-box;
 }
 
-input[type="text"]:disabled {
-    background-color: #2a2d2e;
-    cursor: not-allowed;
-}
-
+.button-group { display: flex; gap: 10px; margin-top: 15px; }
 button {
-    background-color: #3a82f6;
+    flex: 1;
+    padding: 10px;
+    background-color: #1f6aa5;
     color: white;
     border: none;
-    border-radius: 6px;
-    padding: 10px 15px;
+    border-radius: 4px;
     cursor: pointer;
     font-weight: bold;
-    transition: background-color 0.2s;
 }
+button:disabled { background-color: #444; cursor: not-allowed; color: #888; }
+button:hover:not(:disabled) { background-color: #144870; }
 
-button:hover {
-    background-color: #2c71e0;
-}
+.status-bar { margin-top: 10px; color: gray; font-size: 0.9em; }
 
-button:disabled {
-    background-color: #4a4d50;
-    cursor: not-allowed;
-}
-
-.full-width {
-    grid-column: 1 / -1;
+#resultsBox {
     width: 100%;
+    height: 600px;
+    background-color: #1a1a1a;
+    color: #ccc;
+    border: 1px solid #333;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    padding: 0; /* Padding is now handled by content inside */
+    box-sizing: border-box;
+    overflow-y: auto; /* Enable scrolling for the table */
+    margin-bottom: 20px;
+    white-space: pre-wrap; /* Preserve newlines for text messages (Search mode) */
 }
 
-.input-group {
-    display: flex;
-    gap: 10px;
+/* Table Styling for Fetch Results */
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Consolas', monospace; /* Keep monospace for data alignment */
+    white-space: normal; /* Reset whitespace for table */
 }
 
-/* Results & Status */
-.results-frame {
-    background-color: #1e1e1e;
-    border: 1px solid #3e3e3e;
-    border-radius: 8px;
-    min-height: 400px;
+.results-table th {
+    position: sticky;
+    top: 0;
+    background-color: #1a1a1a; /* Match container bg to cover scrolling content */
+    color: #4da6ff; /* Blue text as requested */
+    text-align: left;
     padding: 10px;
+    border-bottom: 2px solid #333;
+    z-index: 1;
 }
 
-#results-textbox {
-    font-family: "Consolas", "Courier New", monospace;
-    font-size: 12px;
-    white-space: pre;
-    overflow-x: auto;
+.results-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid #2b2b2b;
 }
 
-#status-bar, #disclaimer {
-    text-align: center;
-    color: #6c757d;
+.results-table tr:hover {
+    background-color: #242424;
+}
+
+/* Race Mode Styles */
+.hidden { display: none; }
+#raceModeContainer {
+    background-color: #2b2b2b;
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px solid #444;
+}
+
+.race-header-row {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    margin-bottom: 15px;
+}
+.race-header-row h2 {
+    margin-left: auto; /* Pushes the 'Tracking: ...' text to the right */
+}
+
+.popout-btn {
+    padding: 5px 10px;
+    flex: 0; /* Don't allow this button to grow */
     font-size: 0.8em;
-    margin-top: 10px;
+    margin-right: 15px;
 }
+
+.checkbox-label { font-weight: normal; display: flex; align-items: center; gap: 5px; margin: 0;}
+
+.ladder-section { margin-bottom: 20px; }
+.ladder-section h3 { border-bottom: 1px solid #555; padding-bottom: 5px; margin-bottom: 10px; }
+
+.ladder-table { display: flex; flex-direction: column; gap: 2px; }
+
+.race-row {
+    display: grid;
+    grid-template-columns: 60px 1fr 100px 60px; /* Title, Name, XP, Rank */
+    align-items: center;
+    padding: 8px 5px;
+    border-radius: 3px;
+    font-size: 0.95em;
+}
+
+/* Row Colors matching gui.py */
+.row-ahead { background-color: #242424; } /* gray14 */
+.row-behind { background-color: #2b2b2b; } /* gray17 - slightly lighter/same as frame */
+/* Make behind slightly distinct from frame if frame is 2b2b2b */
+.row-behind { background-color: #333333; } 
+
+.col-title { font-weight: bold; color: #aaa; }
+.col-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px;}
+.col-xp { text-align: right; font-family: 'Consolas', monospace; }
+.col-rank { text-align: right; color: #888; }
+
+.xp-plus { color: #2CC985; } /* Green */
+.xp-minus { color: #FF5252; } /* Red */
+.xp-neutral { color: #ccc; }
+
+.full-width-btn { width: 100%; margin-top: 10px; }

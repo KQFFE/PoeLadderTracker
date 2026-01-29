@@ -23,49 +23,79 @@ class RaceModeWindow(customtkinter.CTkToplevel):
         # --- Widgets ---
         self.main_frame = customtkinter.CTkFrame(self)
         self.main_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
-        
-        # Configure columns for the table layout
-        self.main_frame.grid_columnconfigure(0, weight=0) # Title
-        self.main_frame.grid_columnconfigure(1, weight=1) # Name
-        self.main_frame.grid_columnconfigure(2, weight=0) # XP
-        self.main_frame.grid_columnconfigure(3, weight=0) # Rank
+        self.main_frame.grid_columnconfigure(0, weight=1)
 
-        # Header Row (Row 0)
+        # --- Controls Frame (Row 0) ---
+        self.controls_frame = customtkinter.CTkFrame(self.main_frame, fg_color="transparent")
+        self.controls_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
+        self.controls_frame.grid_columnconfigure(3, weight=1)
+
         # Always on Top checkbox (Left)
         self.always_on_top_var = customtkinter.StringVar(value="on")
-        self.always_on_top_check = customtkinter.CTkCheckBox(self.main_frame, text="Always on Top", command=self.toggle_always_on_top, variable=self.always_on_top_var, onvalue="on", offvalue="off")
-        self.always_on_top_check.grid(row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 5))
+        self.always_on_top_check = customtkinter.CTkCheckBox(self.controls_frame, text="Always on Top", command=self.toggle_always_on_top, variable=self.always_on_top_var, onvalue="on", offvalue="off", width=0)
+        self.always_on_top_check.grid(row=0, column=0, sticky="w", padx=(5, 10))
         self.toggle_always_on_top() # Set initial state
 
         # Auto Refresh checkbox (Row 0, middle-ish)
         self.auto_refresh_var = customtkinter.StringVar(value="on")
-        self.auto_refresh_check = customtkinter.CTkCheckBox(self.main_frame, text="Auto Refresh (60s)", variable=self.auto_refresh_var, onvalue="on", offvalue="off", command=self.toggle_auto_refresh)
-        self.auto_refresh_check.grid(row=0, column=1, sticky="w", padx=10, pady=(10, 5))
+        self.auto_refresh_check = customtkinter.CTkCheckBox(self.controls_frame, text="Auto Refresh", variable=self.auto_refresh_var, onvalue="on", offvalue="off", command=self.toggle_auto_refresh, width=0)
+        self.auto_refresh_check.grid(row=0, column=1, sticky="w", padx=10)
+
+        # View Mode Menu
+        self.view_mode_menu = customtkinter.CTkOptionMenu(self.controls_frame, values=["Both", "Ascendancy", "Global"], command=self.toggle_view_mode, width=110)
+        self.view_mode_menu.grid(row=0, column=2, sticky="w", padx=10)
 
         # Tracking Label (Right)
-        self.header_label = customtkinter.CTkLabel(self.main_frame, text=f"Tracking: {self.target_entry['character']['name']}", font=customtkinter.CTkFont(weight="bold"))
-        self.header_label.grid(row=0, column=2, columnspan=2, sticky="e", padx=10, pady=(10, 5))
+        self.header_label = customtkinter.CTkLabel(self.controls_frame, text=f"Tracking: {self.target_entry['character']['name']}", font=customtkinter.CTkFont(weight="bold"))
+        self.header_label.grid(row=0, column=3, sticky="e", padx=5)
 
         # --- Define Colors ---
         BEHIND_COLOR = ("gray75", "gray17") # Slightly darker than frame
         AHEAD_COLOR = ("gray70", "gray14")  # Even darker
 
         # --- Display Labels ---
+        # Ascendancy Frame (Row 1)
+        self.asc_frame = customtkinter.CTkFrame(self.main_frame, fg_color="transparent")
+        self.asc_frame.grid(row=1, column=0, sticky="ew", pady=5)
+        self.asc_frame.grid_columnconfigure(0, weight=0)
+        self.asc_frame.grid_columnconfigure(1, weight=1)
+        self.asc_frame.grid_columnconfigure(2, weight=0)
+        self.asc_frame.grid_columnconfigure(3, weight=0)
+
         # Ascendancy Ladder
-        self.asc_header = self.create_header_label(self.main_frame, f"{self.target_entry['character']['class']} Ladder", 1)
-        self.asc_ahead_labels = self.create_info_row(self.main_frame, "Ahead:", 2, fg_color=AHEAD_COLOR)
-        self.asc_behind_labels = self.create_info_row(self.main_frame, "Behind:", 3, fg_color=BEHIND_COLOR)
+        self.asc_header = self.create_header_label(self.asc_frame, f"{self.target_entry['character']['class']} Ladder", 0)
+        self.asc_ahead_labels = self.create_info_row(self.asc_frame, "Ahead:", 1, fg_color=AHEAD_COLOR)
+        self.asc_behind_labels = self.create_info_row(self.asc_frame, "Behind:", 2, fg_color=BEHIND_COLOR)
+
+        # Global Frame (Row 2)
+        self.global_frame = customtkinter.CTkFrame(self.main_frame, fg_color="transparent")
+        self.global_frame.grid(row=2, column=0, sticky="ew", pady=5)
+        self.global_frame.grid_columnconfigure(0, weight=0)
+        self.global_frame.grid_columnconfigure(1, weight=1)
+        self.global_frame.grid_columnconfigure(2, weight=0)
+        self.global_frame.grid_columnconfigure(3, weight=0)
 
         # Global Ladder
-        self.global_header = self.create_header_label(self.main_frame, "Global Ladder", 4)
-        self.global_ahead_labels = self.create_info_row(self.main_frame, "Ahead:", 5, fg_color=AHEAD_COLOR)
-        self.global_behind_labels = self.create_info_row(self.main_frame, "Behind:", 6, fg_color=BEHIND_COLOR)
+        self.global_header = self.create_header_label(self.global_frame, "Global Ladder", 0)
+        self.global_ahead_labels = self.create_info_row(self.global_frame, "Ahead:", 1, fg_color=AHEAD_COLOR)
+        self.global_behind_labels = self.create_info_row(self.global_frame, "Behind:", 2, fg_color=BEHIND_COLOR)
         
         # Refresh button
         self.refresh_button = customtkinter.CTkButton(self.main_frame, text="Refresh", command=self.refresh_data_thread)
-        self.refresh_button.grid(row=7, column=0, columnspan=4, pady=(15, 5), sticky="ew")
+        self.refresh_button.grid(row=3, column=0, pady=(15, 5), sticky="ew", padx=10)
 
         self.refresh_data_thread() # Initial data load
+
+    def toggle_view_mode(self, choice):
+        if choice == "Both":
+            self.asc_frame.grid(row=1, column=0, sticky="ew", pady=5)
+            self.global_frame.grid(row=2, column=0, sticky="ew", pady=5)
+        elif choice == "Ascendancy":
+            self.asc_frame.grid(row=1, column=0, sticky="ew", pady=5)
+            self.global_frame.grid_forget()
+        elif choice == "Global":
+            self.asc_frame.grid_forget()
+            self.global_frame.grid(row=2, column=0, sticky="ew", pady=5)
 
     def create_header_label(self, parent, text, row):
         label = customtkinter.CTkLabel(parent, text=text, font=customtkinter.CTkFont(weight="bold", underline=True))

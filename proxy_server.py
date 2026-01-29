@@ -40,6 +40,11 @@ def send_static(path):
     # This assumes you have your css/js in a 'static' folder.
     return send_from_directory('static', path)
 
+@app.route('/popout.html')
+def popout():
+    """Serves the popout HTML page for Race Mode."""
+    return render_template('popout.html')
+
 
 # --- API Proxy Routes ---
 
@@ -191,4 +196,5 @@ def proxy_public_ladder(league_id):
 if __name__ == '__main__':
     # For production, use a proper WSGI server like Gunicorn or Waitress
     # Example: gunicorn --bind 0.0.0.0:5000 proxy_server:app
-    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=True, use_reloader=True)

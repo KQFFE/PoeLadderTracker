@@ -1,379 +1,499 @@
-// --- Configuration ---
-// By setting the base URL to an empty string, the browser will automatically
-// use the current origin (e.g., "http://127.0.0.1:5000" locally, or
-// "https://poeladdertracker.xyz" in production) for API requests.
-const PROXY_BASE_URL = "";
-const ALL_ASCENDANCY_NAMES = [
-    "Slayer", "Gladiator", "Champion", "Assassin", "Saboteur", "Trickster", "Juggernaut", "Berserker", "Chieftain",
-    "Necromancer", "Occultist", "Elementalist", "Deadeye", "Raider", "Pathfinder", "Inquisitor", "Hierophant",
-    "Guardian", "Ascendant"
-];
-// Sort the array alphabetically for display in the dropdown menu.
-ALL_ASCENDANCY_NAMES.sort();
+let allFetchedEntries = [];
+let foundCharacterEntry = null;
+let raceInterval = null;
+let isSearching = false;
+let stopSearchFlag = false;
+let currentLimit = 10;
+let currentOffset = 0;
+
 const CHUNK_SIZE = 200;
 
-// --- State ---
-const state = {
-    allFetchedEntries: [],
-    currentOffset: 0,
-    currentLimit: 10,
-    allLeaguesData: [],
-    stopSearchController: null,
-};
+const ASCENDANCIES = [
+    "Guardian", "Hierophant", "Inquisitor", "Assassin", "Saboteur", "Trickster", 
+    "Berserker", "Chieftain", "Juggernaut", "Champion", "Gladiator", "Slayer", 
+    "Necromancer", "Occultist", "Elementalist", "Deadeye", "Pathfinder", "Raider", "Ascendant"
+];
 
-let leagueMenu, ascendancyMenu, privateLeagueCheck, privateLeagueEntry,
-    deepSearchCheck, fetchButton, searchButton, stopButton, charNameEntry,
-    resultsBox, showMoreButton, statusLabel;
+document.addEventListener('DOMContentLoaded', () => {
+    fetchLeagues();
+    populateAscendancies();
+});
 
-// --- API Client ---
-async function makeApiRequest(endpoint, signal) {
+async function fetchLeagues() {
     try {
-        const response = await fetch(`${PROXY_BASE_URL}/${endpoint}`, { signal });
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
-        }
-        return await response.json();
-    } catch (e) {
-        console.error(`Error fetching from ${endpoint}:`, e);
-        statusLabel.textContent = `Error: Failed to fetch data from server.`;
-        return null;
-    }
-}
-
-function fetchLeagues() {
-    return makeApiRequest("leagues");
-}
-
-function fetchLadder(leagueId, limit, offset, isDeep, signal) {
-    const endpoint = isDeep
-        ? `ladder/${leagueId}?limit=${limit}&offset=${offset}`
-        : `public-ladder/${leagueId}?limit=${limit}&offset=${offset}`;
-    return makeApiRequest(endpoint, signal);
-}
-
-// --- UI Logic ---
-function setControlsState(isFetching) {
-    fetchButton.disabled = isFetching;
-    searchButton.disabled = isFetching;
-    stopButton.disabled = !isFetching;
-    leagueMenu.disabled = isFetching || privateLeagueCheck.checked;
-    ascendancyMenu.disabled = isFetching;
-    privateLeagueCheck.disabled = isFetching;
-    deepSearchCheck.disabled = isFetching || privateLeagueCheck.checked;
-    privateLeagueEntry.disabled = isFetching || !privateLeagueCheck.checked;
-    charNameEntry.disabled = isFetching;
-}
-
-function formatResults(finalResults, league) {
-    let tableRows = '';
-    let lastAscendancy = null;
-
-    for (const char of finalResults) {
-        const isNewAscendancy = lastAscendancy && char.ascendancy !== lastAscendancy;
-        const separatorClass = isNewAscendancy ? ' class="ascendancy-separator"' : '';
-
-        tableRows += `
-            <tr${separatorClass}>
-                <td>${char.ascendancy}</td>
-                <td>${char.level}</td>
-                <td>${char.name}</td>
-                <td>${char.asc_rank} / ${char.global_rank}</td>
-            </tr>`;
-        lastAscendancy = char.ascendancy;
-    }
-
-    return `
-        <table>
-            <thead><tr><th>Ascendancy</th><th>Level</th><th>Character Name</th><th>Rank (Asc/Global)</th></tr></thead>
-            <tbody>${tableRows}</tbody>
-        </table>`;
-}
-
-// --- Data Fetching ---
-async function loadLeagues() {
-    setControlsState(true); // Disable controls while loading
-    updateStatus("Fetching leagues from proxy...");
-    const data = await fetchLeagues();
-    
-    const leaguesArray = Array.isArray(data) ? data : (data && Array.isArray(data.result) ? data.result : null);
-
-    if (leaguesArray && leaguesArray.length > 0) {
-        state.allLeaguesData = leaguesArray;
-        state.allLeaguesData.sort((a, b) => a.id.localeCompare(b.id));
-
-        leagueMenu.innerHTML = leaguesArray
-            .map(lg => `<option value="${lg.id}">${lg.id}</option>`)
-            .join('');
+        const response = await fetch('/leagues');
+        const leagues = await response.json();
+        const select = document.getElementById('leagueSelect');
+        select.innerHTML = '';
         
-        const defaultLeague = state.allLeaguesData.find(lg => lg.id === "Standard") || state.allLeaguesData[0];
-        if (defaultLeague) {
-            leagueMenu.value = defaultLeague.id;
+        if (Array.isArray(leagues)) {
+            leagues.sort((a, b) => {
+                const textA = (a.text || a.id).toLowerCase();
+                const textB = (b.text || b.id).toLowerCase();
+                return textA.localeCompare(textB);
+            });
+            leagues.forEach(league => {
+                const option = document.createElement('option');
+                option.value = league.id;
+                option.textContent = league.text || league.id;
+                select.appendChild(option);
+            });
+        } else {
+            select.innerHTML = '<option>Error fetching leagues</option>';
         }
+    } catch (error) {
+        console.error(error);
+        document.getElementById('leagueSelect').innerHTML = '<option>Connection Error</option>';
+    }
+}
 
-        updateStatus("Ready.");
-        setControlsState(false);
+function populateAscendancies() {
+    const select = document.getElementById('ascendancySelect');
+    ASCENDANCIES.sort();
+    ASCENDANCIES.forEach(asc => {
+        const option = document.createElement('option');
+        option.value = asc;
+        option.textContent = asc;
+        select.appendChild(option);
+    });
+}
+
+function updateStatus(msg) {
+    document.getElementById('status').textContent = msg;
+}
+
+function logResult(msg) {
+    const box = document.getElementById('resultsBox');
+    // The fetch result is a table with its own padding.
+    // Other results (search, status) are plain text and need padding.
+    if (msg.trim().startsWith('<table')) {
+        box.innerHTML = msg;
     } else {
-        leagueMenu.innerHTML = `<option value="">Error fetching leagues</option>`;
-        // The error is already logged by makeApiRequest. Just update the status.
-        updateStatus("Error: Could not load leagues. See console for details.");
-        setControlsState(false); // Allow user to try again if it was a temp issue.
+        // Wrap plain text to add padding and preserve formatting.
+        box.innerHTML = `<pre style="padding: 10px; margin: 0; font-family: 'Consolas', monospace; color: #ccc; white-space: pre-wrap; word-wrap: break-word;">${msg}</pre>`;
+    }
+}
+
+function stopSearch() {
+    stopSearchFlag = true;
+}
+
+function togglePrivateLeague() {
+    const isChecked = document.getElementById('privateLeagueCheck').checked;
+    const leagueSelect = document.getElementById('leagueSelect');
+    const privateInput = document.getElementById('privateLeagueInput');
+
+    if (isChecked) {
+        leagueSelect.disabled = true;
+        privateInput.disabled = false;
+    } else {
+        leagueSelect.disabled = false;
+        privateInput.disabled = true;
     }
 }
 
 function getSelectedLeagueId() {
-    if (privateLeagueCheck.checked) {
-        const privateId = privateLeagueEntry.value.trim();
-        if (!privateId) {
-            updateStatus("Error: Private league name cannot be empty.");
-            return null;
-        }
-        return privateId;
-    }
+    const isPrivate = document.getElementById('privateLeagueCheck').checked;
+    return isPrivate ? document.getElementById('privateLeagueInput').value.trim() : document.getElementById('leagueSelect').value;
+}
 
-    if (!leagueMenu.value) {
-        updateStatus("Error: Please select a league.");
-        return null;
-    }
-    return leagueMenu.value;
+async function fetchCharacters() {
+    currentLimit = 10;
+    currentOffset = 0;
+    allFetchedEntries = [];
+    await fetchAndDisplayData();
+}
+
+async function showMoreCharacters() {
+    currentLimit += 50;
+    await fetchAndDisplayData();
 }
 
 async function fetchAndDisplayData() {
-    setControlsState(true);
-    updateStatus("Fetching data...");
-    resultsBox.textContent = "";
-    showMoreButton.style.display = 'none';
-
     const leagueId = getSelectedLeagueId();
-    if (!leagueId) {
-        setControlsState(false);
-        return;
-    }
+    const ascendancy = document.getElementById('ascendancySelect').value;
+    const selectedAsc = ascendancy === "All" ? null : ascendancy;
 
-    const selectedAscendancy = ascendancyMenu.value === "All" ? null : ascendancyMenu.value;
-    const isDeep = deepSearchCheck.checked;
+    document.getElementById('fetchBtn').disabled = true;
+    document.getElementById('showMoreBtn').disabled = true;
+    document.getElementById('searchBtn').disabled = true;
+    document.getElementById('stopBtn').disabled = false;
+    document.getElementById('raceBtn').disabled = true;
+    
+    stopSearchFlag = false;
+    logResult(""); // Clear previous results
 
     while (true) {
-        const shouldStop = () => {
-            if (state.currentOffset >= 15000 && !isDeep) return true;
-            if (selectedAscendancy) {
-                const count = state.allFetchedEntries.filter(e => e.character.class === selectedAscendancy).length;
-                return count >= state.currentLimit;
+        if (stopSearchFlag) break;
+        if (shouldStopFetching(selectedAsc)) break;
+
+        updateStatus(`Fetching characters ${currentOffset} to ${currentOffset + CHUNK_SIZE}...`);
+        
+        try {
+            const response = await fetch(`/public-ladder/${encodeURIComponent(leagueId)}?limit=${CHUNK_SIZE}&offset=${currentOffset}`);
+            const data = await response.json();
+
+            if (data.error) {
+                updateStatus(`Error: ${data.message}`);
+                break;
             }
-            return false;
-        };
 
-        if (shouldStop()) break;
+            const entries = data.entries || [];
+            if (entries.length === 0) break;
 
-        updateStatus(`Fetching characters ${state.currentOffset} to ${state.currentOffset + CHUNK_SIZE}...`);
-        const data = await fetchLadder(leagueId, CHUNK_SIZE, state.currentOffset, isDeep, state.stopSearchController ? state.stopSearchController.signal : null);
+            allFetchedEntries.push(...entries);
+            currentOffset += CHUNK_SIZE;
 
-        if (!data || !data.entries || data.entries.length === 0) break;
+            // Live update for "All"
+            if (!selectedAsc) {
+                const results = processLadderData(allFetchedEntries, selectedAsc, currentLimit);
+                logResult(formatResults(results, leagueId));
+            }
 
-        state.allFetchedEntries.push(...data.entries);
-        state.currentOffset += CHUNK_SIZE;
+            await new Promise(r => setTimeout(r, 500));
 
-        if (!selectedAscendancy) {
-            const processed = processLadderData(state.allFetchedEntries, null, state.currentLimit);
-            resultsBox.innerHTML = formatResults(processed, leagueId);
+        } catch (e) {
+            updateStatus(`Network error: ${e.message}`);
+            break;
         }
-        await new Promise(resolve => setTimeout(resolve, 500));
     }
 
-    const processed = processLadderData(state.allFetchedEntries, selectedAscendancy, state.currentLimit);
-    resultsBox.innerHTML = formatResults(processed, leagueId);
-    resultsBox.scrollTop = 0; // Scroll to top to see results
-
-    updateStatus(`Done. Showing top ${state.currentLimit} for ${selectedAscendancy || 'all ascendancies'}.`);
-    setControlsState(false);
-    if (selectedAscendancy) {
-        showMoreButton.style.display = 'block';
+    // Final update
+    const results = processLadderData(allFetchedEntries, selectedAsc, currentLimit);
+    logResult(formatResults(results, leagueId));
+    
+    updateStatus(`Done. Showing top ${currentLimit} for ${selectedAsc || 'all ascendancies'}.`);
+    
+    document.getElementById('fetchBtn').disabled = false;
+    document.getElementById('searchBtn').disabled = false;
+    document.getElementById('stopBtn').disabled = true;
+    
+    if (ascendancy !== "All") {
+        document.getElementById('showMoreBtn').disabled = false;
     }
+}
+
+function shouldStopFetching(ascendancy) {
+    if (currentOffset >= 15000) return true;
+    
+    if (ascendancy) {
+        const count = allFetchedEntries.filter(e => e.character.class === ascendancy).length;
+        return count >= currentLimit;
+    }
+    
+    // For "All", check if we have enough for every ascendancy
+    const counts = {};
+    ASCENDANCIES.forEach(a => counts[a] = 0);
+    allFetchedEntries.forEach(e => {
+        if (counts[e.character.class] !== undefined) counts[e.character.class]++;
+    });
+    
+    return ASCENDANCIES.every(a => counts[a] >= currentLimit);
 }
 
 async function searchCharacter() {
-    const charName = charNameEntry.value.trim();
-    if (!charName) {
-        resultsBox.textContent = "Please enter a character name to search.";
-        return;
-    }
-
-    state.stopSearchController = new AbortController();
-    setControlsState(true);
-    resultsBox.textContent = `Searching for '${charName}'...`;
-
+    const charName = document.getElementById('charNameInput').value.trim();
     const leagueId = getSelectedLeagueId();
-    if (!leagueId) {
-        setControlsState(false);
+    
+    if (!charName) {
+        logResult("Please enter a character name.");
         return;
     }
-    const isDeep = deepSearchCheck.checked;
-    let currentSearchOffset = 0;
-    let foundEntry = null;
-    const allScannedEntries = [];
+
+    // Reset state
+    isSearching = true;
+    stopSearchFlag = false;
+    allFetchedEntries = []; // Clear cache for fallback
+    foundCharacterEntry = null;
+    
+    document.getElementById('searchBtn').disabled = true;
+    document.getElementById('stopBtn').disabled = false;
+    document.getElementById('raceBtn').disabled = true;
+    document.getElementById('raceModeContainer').classList.add('hidden');
+    
+    let offset = 0;
+    let found = false;
+
+    updateStatus(`Searching for ${charName}...`);
+    logResult("Starting search...");
+
+    while (!stopSearchFlag && !found && offset < 15000) {
+        updateStatus(`Scanning offset ${offset}...`);
+        
+        try {
+            const response = await fetch(`/public-ladder/${encodeURIComponent(leagueId)}?limit=${CHUNK_SIZE}&offset=${offset}`);
+            const data = await response.json();
+            
+            if (data.error) {
+                logResult(`Error: ${data.message}`);
+                break;
+            }
+
+            const entries = data.entries || [];
+            if (entries.length === 0) break;
+
+            // Cache entries for Race Mode fallback
+            allFetchedEntries.push(...entries);
+
+            for (const entry of entries) {
+                if (entry.character.name.toLowerCase() === charName.toLowerCase()) {
+                    foundCharacterEntry = entry;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (found) break;
+            
+            offset += CHUNK_SIZE;
+            // Small delay to be nice to the proxy/API
+            await new Promise(r => setTimeout(r, 200));
+
+        } catch (e) {
+            logResult(`Network error: ${e.message}`);
+            break;
+        }
+    }
+
+    document.getElementById('searchBtn').disabled = false;
+    document.getElementById('stopBtn').disabled = true;
+
+    if (found) {
+        updateStatus(`Found ${foundCharacterEntry.character.name}!`);
+        logResult(`Character Found:\nName: ${foundCharacterEntry.character.name}\nLevel: ${foundCharacterEntry.character.level}\nClass: ${foundCharacterEntry.character.class}\nRank: ${foundCharacterEntry.rank}`);
+        document.getElementById('raceBtn').disabled = false;
+    } else if (stopSearchFlag) {
+        updateStatus("Search stopped.");
+        logResult("Search cancelled by user.");
+    } else {
+        updateStatus("Character not found.");
+        logResult(`Character '${charName}' not found in top ${offset} entries.`);
+    }
+}
+
+function popoutRaceMode() {
+    if (!foundCharacterEntry) return;
+
+    // Store data for the popout window to access
+    localStorage.setItem('raceModeCharacter', JSON.stringify(foundCharacterEntry));
+    localStorage.setItem('raceModeLeagueId', getSelectedLeagueId());
+    localStorage.setItem('allFetchedEntries', JSON.stringify(allFetchedEntries));
+
+    // Open the new window
+    const popoutWidth = 570;
+    const popoutHeight = 360;
+    window.open('/popout.html', 'PoeRaceMode', `width=${popoutWidth},height=${popoutHeight},resizable=yes,scrollbars=no`);
+}
+
+function toggleRaceView() {
+    const mode = document.getElementById('viewModeSelect').value;
+    const ascSection = document.getElementById('ascSection');
+    const globalSection = document.getElementById('globalSection');
+
+    if (mode === 'both') {
+        ascSection.classList.remove('hidden');
+        globalSection.classList.remove('hidden');
+    } else if (mode === 'ascendancy') {
+        ascSection.classList.remove('hidden');
+        globalSection.classList.add('hidden');
+    } else if (mode === 'global') {
+        ascSection.classList.add('hidden');
+        globalSection.classList.remove('hidden');
+    }
+}
+
+function startRaceMode() {
+    if (!foundCharacterEntry) return;
+    
+    document.getElementById('raceModeContainer').classList.remove('hidden');
+    document.getElementById('trackingHeader').textContent = `Tracking: ${foundCharacterEntry.character.name}`;
+    
+    // Initial load
+    updateRaceData();
+    
+    // Setup auto-refresh
+    toggleAutoRefresh();
+    
+    // Scroll down to race mode
+    document.getElementById('raceModeContainer').scrollIntoView({ behavior: 'smooth' });
+}
+
+function toggleAutoRefresh() {
+    const isChecked = document.getElementById('autoRefreshCheck').checked;
+    if (raceInterval) clearInterval(raceInterval);
+    
+    if (isChecked) {
+        raceInterval = setInterval(updateRaceData, 60000); // 60s
+    }
+}
+
+async function updateRaceData() {
+    const btn = document.getElementById('refreshRaceBtn');
+    btn.disabled = true;
+    btn.textContent = "Refreshing...";
+
+    const leagueId = document.getElementById('leagueSelect').value;
+    const targetRank = foundCharacterEntry.rank;
+    
+    // Fetch window of 200 centered on rank
+    const limit = 200;
+    const offset = Math.max(0, targetRank - (limit / 2));
 
     try {
-        while (true) {
-            if (state.stopSearchController.signal.aborted) throw new Error("Search stopped by user.");
-            // Stop searching public ladders after 15k entries, deep search continues
-            if (currentSearchOffset >= 15000 && !isDeep) break;
+        const response = await fetch(`/public-ladder/${encodeURIComponent(leagueId)}?limit=${limit}&offset=${offset}`);
+        const data = await response.json();
 
-            updateStatus(`Searching... Scanned ${currentSearchOffset} characters.`);
-            const data = await fetchLadder(leagueId, CHUNK_SIZE, currentSearchOffset, isDeep, state.stopSearchController.signal);
-
-            if (!data || !data.entries || data.entries.length === 0) break;
-
-            allScannedEntries.push(...data.entries);
-
-            foundEntry = data.entries.find(e => e.character.name.toLowerCase() === charName.toLowerCase());
-            if (foundEntry) break;
-
-            currentSearchOffset += CHUNK_SIZE;
-            await new Promise(resolve => setTimeout(resolve, 500)); // Rate limit between chunks
-        }
-
-        if (foundEntry) {
-            // Calculate ascendancy rank from all scanned entries
-            const ascendancyCounts = {};
-            allScannedEntries.sort((a, b) => a.rank - b.rank);
-            for (const entry of allScannedEntries) {
-                ascendancyCounts[entry.character.class] = (ascendancyCounts[entry.character.class] || 0) + 1;
-                if (entry.character.name === foundEntry.character.name) break;
-            }
-            const ascRank = ascendancyCounts[foundEntry.character.class];
-
-            const resultHTML = `
-                <table>
-                    <thead><tr><th colspan="2">Character Found</th></tr></thead>
-                    <tbody>
-                        <tr><td>Name</td><td>${foundEntry.character.name}</td></tr>
-                        <tr><td>Level</td><td>${foundEntry.character.level}</td></tr>
-                        <tr><td>Class</td><td>${foundEntry.character.class}</td></tr>
-                        <tr><td>Rank</td><td>${ascRank} (Asc) / ${foundEntry.rank} (Global)</td></tr>
-                    </tbody>
-                </table>`;
-            resultsBox.innerHTML = resultHTML;
-            updateStatus(`Search complete. Found '${charName}'.`);
+        if (data.entries) {
+            processRaceData(data.entries);
         } else {
-            resultsBox.innerHTML = `
-                <div style="padding: 20px; text-align: center;">
-                    Character '${charName}' not found after scanning ${currentSearchOffset} entries.
-                </div>`;
-            updateStatus("Search complete. Character not found.");
+            console.error("Failed to refresh race data");
         }
-    } catch (error) {
-        updateStatus(error.name === 'AbortError' ? "Search stopped." : `Search failed: ${error.message}`);
-    } finally {
-        setControlsState(false);
-        state.stopSearchController = null;
+    } catch (e) {
+        console.error(e);
     }
+
+    btn.disabled = false;
+    btn.textContent = "Refresh";
 }
 
-function updateStatus(message) {
-    statusLabel.textContent = message;
+function processRaceData(surroundingEntries) {
+    const myName = foundCharacterEntry.character.name;
+    
+    // 1. Find self in new data
+    const myNewEntry = surroundingEntries.find(e => e.character.name === myName);
+    
+    if (!myNewEntry) {
+        // Character fell out of the fetch window or API error
+        return; 
+    }
+
+    // Update local state
+    foundCharacterEntry = myNewEntry;
+    const myXp = myNewEntry.character.experience;
+    const myClass = myNewEntry.character.class;
+
+    const getNeighbor = (list, selfEntry, direction, cache) => {
+        const idx = list.findIndex(e => e.character.name === selfEntry.character.name);
+        if (idx === -1) { // Not found in live slice, rely entirely on cache
+            const cacheIdx = cache.findIndex(e => e.character.name === selfEntry.character.name);
+            if (cacheIdx === -1) return null;
+            if (direction === 'ahead') return cache[cacheIdx - 1] || null;
+            return cache[cacheIdx + 1] || null;
+        }
+        
+        if (direction === 'ahead') {
+            if (idx > 0) return list[idx - 1];
+            // Fallback to cache if at the edge of the live slice
+            const cacheIdx = allFetchedEntries.findIndex(e => e.character.name === selfEntry.character.name);
+            if (cacheIdx > 0) return allFetchedEntries[cacheIdx - 1];
+        } else { // 'behind'
+            if (idx < list.length - 1) return list[idx + 1];
+            // Fallback to cache
+            const cacheIdx = allFetchedEntries.findIndex(e => e.character.name === selfEntry.character.name);
+            if (cacheIdx !== -1 && cacheIdx < allFetchedEntries.length - 1) return allFetchedEntries[cacheIdx + 1];
+        }
+        return null;
+    };
+
+    const ascEntries = surroundingEntries.filter(e => e.character.class === myClass);
+    const cachedAscEntries = allFetchedEntries.filter(e => e.character.class === myClass);
+
+    const globalAhead = getNeighbor(surroundingEntries, myNewEntry, 'ahead', allFetchedEntries);
+    const globalBehind = getNeighbor(surroundingEntries, myNewEntry, 'behind', allFetchedEntries);
+    renderLadderTable('globalTable', globalAhead, globalBehind, myXp);
+
+    const ascAhead = getNeighbor(ascEntries, myNewEntry, 'ahead', cachedAscEntries);
+    const ascBehind = getNeighbor(ascEntries, myNewEntry, 'behind', cachedAscEntries);
+    renderLadderTable('ascTable', ascAhead, ascBehind, myXp);
 }
 
-// --- Event Listeners ---
-function initializeApp() {
-    // --- DOM Element Lookups ---
-    // This is done inside initializeApp to ensure the DOM is fully loaded.
-    leagueMenu = document.getElementById('league-menu');
-    ascendancyMenu = document.getElementById('ascendancy-menu');
-    privateLeagueCheck = document.getElementById('private-league-check');
-    privateLeagueEntry = document.getElementById('private-league-entry');
-    deepSearchCheck = document.getElementById('deep-search-check');
-    fetchButton = document.getElementById('fetch-button');
-    searchButton = document.getElementById('search-button');
-    stopButton = document.getElementById('stop-button');
-    charNameEntry = document.getElementById('char-name-entry');
-    resultsBox = document.getElementById('results-box');
-    showMoreButton = document.getElementById('show-more-button');
-    statusLabel = document.getElementById('status-label');
+function renderLadderTable(elementId, ahead, behind, myXp) {
+    const container = document.getElementById(elementId);
+    container.innerHTML = '';
+    
+    const createRow = (title, entry, cssClass) => {
+        const xpDiff = entry ? entry.character.experience - myXp : 0;
+        const xpClass = xpDiff > 0 ? 'xp-plus' : (xpDiff < 0 ? 'xp-minus' : 'xp-neutral');
+        const xpText = entry ? `XP: ${xpDiff > 0 ? '+' : ''}${xpDiff.toLocaleString()}` : '';
+        
+        return `
+            <div class="race-row ${cssClass}">
+                <div class="col-title">${title}</div>
+                <div class="col-name">${entry ? `${entry.character.name} (Lvl ${entry.character.level})` : 'N/A'}</div>
+                <div class="col-xp ${xpClass}">${xpText}</div>
+                <div class="col-rank">${entry ? '#' + entry.rank : ''}</div>
+            </div>
+        `;
+    };
 
-    ascendancyMenu.innerHTML = ["All", ...ALL_ASCENDANCY_NAMES]
-        .map(asc => `<option value="${asc}">${asc}</option>`)
-        .join('');
-
-    loadLeagues();
-
-    privateLeagueCheck.addEventListener('change', () => {
-        const isChecked = privateLeagueCheck.checked;
-        privateLeagueEntry.disabled = !isChecked;
-        leagueMenu.disabled = isChecked;
-        deepSearchCheck.disabled = isChecked;
-        if (isChecked) deepSearchCheck.checked = false;
-    });
-
-    ascendancyMenu.addEventListener('change', () => {
-        showMoreButton.style.display = ascendancyMenu.value === "All" ? 'none' : 'block';
-    });
-
-    fetchButton.addEventListener('click', () => {
-        state.allFetchedEntries = [];
-        state.currentOffset = 0;
-        state.currentLimit = 10;
-        fetchAndDisplayData();
-    });
-
-    showMoreButton.addEventListener('click', () => {
-        state.currentLimit += 20;
-        fetchAndDisplayData(); // Re-run fetch to get more data if needed
-    });
-
-    searchButton.addEventListener('click', searchCharacter);
-    stopButton.addEventListener('click', () => {
-        if (state.stopSearchController) state.stopSearchController.abort();
-    });
+    container.innerHTML += createRow("Ahead:", ahead, "row-ahead");
+    container.innerHTML += createRow("Behind:", behind, "row-behind");
 }
 
-// --- Data Processor ---
 function processLadderData(entries, selectedAscendancy, limit) {
-    const ascendancyCounts = {};
-    const filteredEntries = [];
+    const results = [];
+    const ascCounts = {};
 
-    // Sort all entries by global rank first to ensure correct ascendancy ranking
-    entries.sort((a, b) => a.rank - b.rank);
-
+    // Calculate ranks
     for (const entry of entries) {
-        const charClass = entry.character.class;
-        ascendancyCounts[charClass] = (ascendancyCounts[charClass] || 0) + 1;
+        const asc = entry.character.class;
+        if (!ascCounts[asc]) ascCounts[asc] = 0;
+        ascCounts[asc]++;
+        
+        const item = {
+            name: entry.character.name,
+            level: entry.character.level,
+            ascendancy: asc,
+            global_rank: entry.rank,
+            asc_rank: ascCounts[asc]
+        };
 
-        if (!selectedAscendancy || charClass === selectedAscendancy) {
-            filteredEntries.push({
-                ascendancy: charClass,
-                level: entry.character.level,
-                name: entry.character.name,
-                global_rank: entry.rank,
-                asc_rank: ascendancyCounts[charClass]
-            });
+        if (selectedAscendancy) {
+            if (asc === selectedAscendancy && item.asc_rank <= limit) {
+                results.push(item);
+            }
+        } else {
+            if (item.asc_rank <= limit) {
+                results.push(item);
+            }
         }
     }
-
-    if (selectedAscendancy) {
-        return filteredEntries.slice(0, limit);
-    }
-
-    const finalResults = [];
-    const processedCounts = {};
-    ALL_ASCENDANCY_NAMES.forEach(asc => processedCounts[asc] = 0);
-
-    for (const entry of filteredEntries) {
-        if (processedCounts[entry.ascendancy] < limit) {
-            finalResults.push(entry);
-            processedCounts[entry.ascendancy]++;
-        }
-    }
-    return finalResults.sort((a, b) => a.ascendancy.localeCompare(b.ascendancy) || a.asc_rank - b.asc_rank);
+    
+    // Sort
+    results.sort((a, b) => {
+        if (a.ascendancy < b.ascendancy) return -1;
+        if (a.ascendancy > b.ascendancy) return 1;
+        return a.asc_rank - b.asc_rank;
+    });
+    
+    return results;
 }
 
-// Polyfill for String.center
-String.prototype.center = function (width, char = ' ') {
-    const length = this.length;
-    if (length >= width) return this.toString();
-    const left = Math.floor((width - length) / 2);
-    const right = width - length - left;
-return char.repeat(left) + this + char.repeat(right);
-};
-
-// --- App Start ---
-document.addEventListener('DOMContentLoaded', initializeApp);
+function formatResults(results, league) {
+    let output = `<table class="results-table">
+        <thead>
+            <tr>
+                <th>Ascendancy</th>
+                <th>Level</th>
+                <th>Character Name</th>
+                <th style="text-align: right;">Rank (Asc/Global)</th>
+            </tr>
+        </thead>
+        <tbody>`;
+    
+    let lastAsc = null;
+    results.forEach(char => {
+        if (lastAsc && char.ascendancy !== lastAsc) {
+            output += `<tr><td colspan="4" style="background-color: #4da6ff; height: 2px; padding: 0; border: none;"></td></tr>`;
+        }
+        output += `<tr>
+            <td>${char.ascendancy}</td>
+            <td>${char.level}</td>
+            <td>${char.name}</td>
+            <td style="text-align: right;">${char.asc_rank} / ${char.global_rank}</td>
+        </tr>`;
+        lastAsc = char.ascendancy;
+    });
+    output += `</tbody></table>`;
+    return output;
+}
