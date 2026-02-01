@@ -8,15 +8,23 @@ let currentOffset = 0;
 
 const CHUNK_SIZE = 200;
 
-const ASCENDANCIES = [
+const STANDARD_ASCENDANCIES = [
     "Guardian", "Hierophant", "Inquisitor", "Assassin", "Saboteur", "Trickster", 
     "Berserker", "Chieftain", "Juggernaut", "Champion", "Gladiator", "Slayer", 
-    "Necromancer", "Occultist", "Elementalist", "Deadeye", "Pathfinder", "Raider", "Ascendant"
+    "Necromancer", "Occultist", "Elementalist", "Deadeye", "Pathfinder", "Warden", "Ascendant"
 ];
+const TEMPORARY_ASCENDANCIES = [
+    "Ancestral Commander", "Antiquarian", "Architect of Chaos", "Aristocrat", 
+    "Behemoth", "Blind Prophet", "Bog Shaman", "Daughter of Oshabi", 
+    "Gambler", "Harbinger", "Herald", "Paladin", "Polytheist", 
+    "Puppeteer", "Scavenger", "Servant of Arakaali", "Surfcaster", 
+    "Whisperer", "Wildspeaker"
+];
+const ALL_ASCENDANCIES = [...STANDARD_ASCENDANCIES, ...TEMPORARY_ASCENDANCIES];
 
 document.addEventListener('DOMContentLoaded', () => {
     fetchLeagues();
-    populateAscendancies();
+    document.getElementById('leagueSelect').addEventListener('change', populateAscendancies);
 });
 
 async function fetchLeagues() {
@@ -41,6 +49,7 @@ async function fetchLeagues() {
         } else {
             select.innerHTML = '<option>Error fetching leagues</option>';
         }
+        populateAscendancies();
     } catch (error) {
         console.error(error);
         document.getElementById('leagueSelect').innerHTML = '<option>Connection Error</option>';
@@ -48,14 +57,33 @@ async function fetchLeagues() {
 }
 
 function populateAscendancies() {
+    const leagueSelect = document.getElementById('leagueSelect');
+    const selectedLeague = leagueSelect.options[leagueSelect.selectedIndex]?.text || "";
     const select = document.getElementById('ascendancySelect');
-    ASCENDANCIES.sort();
-    ASCENDANCIES.forEach(asc => {
-        const option = document.createElement('option');
-        option.value = asc;
-        option.textContent = asc;
-        select.appendChild(option);
-    });
+    select.innerHTML = '';
+
+    const allOption = document.createElement('option');
+    allOption.value = "All";
+    allOption.textContent = "All";
+    select.appendChild(allOption);
+
+    if (selectedLeague.includes("Phrecia")) {
+        TEMPORARY_ASCENDANCIES.sort();
+        TEMPORARY_ASCENDANCIES.forEach(asc => {
+            const option = document.createElement('option');
+            option.value = asc;
+            option.textContent = asc;
+            select.appendChild(option);
+        });
+    } else {
+        STANDARD_ASCENDANCIES.sort();
+        STANDARD_ASCENDANCIES.forEach(asc => {
+            const option = document.createElement('option');
+            option.value = asc;
+            option.textContent = asc;
+            select.appendChild(option);
+        });
+    }
 }
 
 function updateStatus(msg) {
@@ -183,12 +211,16 @@ function shouldStopFetching(ascendancy) {
     
     // For "All", check if we have enough for every ascendancy
     const counts = {};
-    ASCENDANCIES.forEach(a => counts[a] = 0);
+    const leagueSelect = document.getElementById('leagueSelect');
+    const selectedLeague = leagueSelect.options[leagueSelect.selectedIndex]?.text || "";
+    const targetList = selectedLeague.includes("Phrecia") ? TEMPORARY_ASCENDANCIES : STANDARD_ASCENDANCIES;
+
+    targetList.forEach(a => counts[a] = 0);
     allFetchedEntries.forEach(e => {
         if (counts[e.character.class] !== undefined) counts[e.character.class]++;
     });
     
-    return ASCENDANCIES.every(a => counts[a] >= currentLimit);
+    return targetList.every(a => counts[a] >= currentLimit);
 }
 
 async function searchCharacter() {

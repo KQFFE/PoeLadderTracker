@@ -3,7 +3,7 @@ import threading
 import time
 # Use the new singleton API client
 from api import GGGAPIClient
-from data_processor import process_ladder_data, ALL_ASCENDANCY_NAMES
+from data_processor import process_ladder_data, ALL_ASCENDANCY_NAMES, STANDARD_ASCENDANCIES, TEMPORARY_ASCENDANCIES
 
 CHUNK_SIZE = 200
 
@@ -36,6 +36,11 @@ class RaceModeWindow(customtkinter.CTkToplevel):
         self.always_on_top_check.grid(row=0, column=0, sticky="w", padx=(5, 10))
         self.toggle_always_on_top() # Set initial state
 
+        # Transparent Background checkbox (Beneath Always on Top)
+        self.transparent_var = customtkinter.StringVar(value="off")
+        self.transparent_check = customtkinter.CTkCheckBox(self.controls_frame, text="Transparent", command=self.toggle_transparency, variable=self.transparent_var, onvalue="on", offvalue="off", width=0)
+        self.transparent_check.grid(row=1, column=0, sticky="w", padx=(5, 10))
+
         # Auto Refresh checkbox (Row 0, middle-ish)
         self.auto_refresh_var = customtkinter.StringVar(value="on")
         self.auto_refresh_check = customtkinter.CTkCheckBox(self.controls_frame, text="Auto Refresh", variable=self.auto_refresh_var, onvalue="on", offvalue="off", command=self.toggle_auto_refresh, width=0)
@@ -48,6 +53,12 @@ class RaceModeWindow(customtkinter.CTkToplevel):
         # Tracking Label (Right)
         self.header_label = customtkinter.CTkLabel(self.controls_frame, text=f"Tracking: {self.target_entry['character']['name']}", font=customtkinter.CTkFont(weight="bold"))
         self.header_label.grid(row=0, column=3, sticky="e", padx=5)
+
+        # Rank Label (Right, beneath Tracking)
+        asc_rank = self.target_entry.get('ascendancy_rank', '?')
+        global_rank = self.target_entry.get('rank', '?')
+        self.rank_label = customtkinter.CTkLabel(self.controls_frame, text=f"Global: #{global_rank}  |  Asc: #{asc_rank}", font=customtkinter.CTkFont(size=12))
+        self.rank_label.grid(row=1, column=3, sticky="e", padx=5)
 
         # --- Define Colors ---
         BEHIND_COLOR = ("gray75", "gray17") # Slightly darker than frame
@@ -84,6 +95,7 @@ class RaceModeWindow(customtkinter.CTkToplevel):
         self.refresh_button = customtkinter.CTkButton(self.main_frame, text="Refresh", command=self.refresh_data_thread)
         self.refresh_button.grid(row=3, column=0, pady=(15, 5), sticky="ew", padx=10)
 
+        self.toggle_auto_refresh() # Set initial button state
         self.refresh_data_thread() # Initial data load
 
     def toggle_view_mode(self, choice):
@@ -135,15 +147,23 @@ class RaceModeWindow(customtkinter.CTkToplevel):
         is_on_top = self.always_on_top_var.get() == "on"
         self.attributes("-topmost", is_on_top)
 
+    def toggle_transparency(self):
+        if self.transparent_var.get() == "on":
+            self.attributes("-alpha", 0.85)
+        else:
+            self.attributes("-alpha", 1.0)
+
     def toggle_auto_refresh(self):
         if self.auto_refresh_var.get() == "off":
             if self.auto_refresh_job:
                 self.after_cancel(self.auto_refresh_job)
                 self.auto_refresh_job = None
+            self.refresh_button.grid(row=3, column=0, pady=(15, 5), sticky="ew", padx=10)
         else:
             # If turned on, schedule a refresh if one isn't already running/scheduled
             if not self.auto_refresh_job:
                 self.auto_refresh_job = self.after(60000, self.refresh_data_thread)
+            self.refresh_button.grid_forget()
 
     def on_close(self):
         if self.auto_refresh_job:
@@ -198,8 +218,18 @@ class RaceModeWindow(customtkinter.CTkToplevel):
             self.global_behind_labels[0].configure(text="")
             return
 
+        # Preserve ascendancy_rank from previous entry as we can't recalculate it easily in a slice
+        if 'ascendancy_rank' in self.target_entry:
+            my_new_entry['ascendancy_rank'] = self.target_entry['ascendancy_rank']
+
         # Update the window's state for the next refresh
         self.target_entry = my_new_entry
+        
+        # Update Rank Label
+        asc_rank = self.target_entry.get('ascendancy_rank', '?')
+        global_rank = self.target_entry.get('rank', '?')
+        self.rank_label.configure(text=f"Global: #{global_rank}  |  Asc: #{asc_rank}")
+
         my_new_xp = int(my_new_entry['character']['experience'])
         my_ascendancy = my_new_entry['character']['class']
 
@@ -300,12 +330,12 @@ class App(customtkinter.CTk):
 
         self.league_label = customtkinter.CTkLabel(self.options_frame, text="Ladder")
         self.league_label.grid(row=0, column=0, padx=10, pady=(10,0), sticky="w")
-        self.league_menu = customtkinter.CTkOptionMenu(self.options_frame, values=["Fetching leagues..."])
+        self.league_menu = customtkinter.CTkOptionMenu(self.options_frame, values=["Fetching leagues..."], command=self.on_league_change)
         self.league_menu.grid(row=1, column=0, padx=10, pady=(0,10), sticky="ew")
 
         self.ascendancy_label = customtkinter.CTkLabel(self.options_frame, text="Ascendancy")
         self.ascendancy_label.grid(row=0, column=1, padx=10, pady=(10,0), sticky="w")
-        self.ascendancy_menu = customtkinter.CTkOptionMenu(self.options_frame, values=["All"] + ALL_ASCENDANCY_NAMES, command=self.on_ascendancy_change)
+        self.ascendancy_menu = customtkinter.CTkOptionMenu(self.options_frame, values=["All"] + STANDARD_ASCENDANCIES, command=self.on_ascendancy_change)
         self.ascendancy_menu.grid(row=1, column=1, padx=10, pady=(0,10), sticky="ew")
 
         self.private_league_check = customtkinter.CTkCheckBox(self.options_frame, text="Use Private League", command=self.toggle_private_league)
@@ -331,6 +361,7 @@ class App(customtkinter.CTk):
         self.char_name_label.grid(row=0, column=0, padx=10, pady=(10,0), sticky="w")
         self.char_name_entry = customtkinter.CTkEntry(self.search_frame)
         self.char_name_entry.grid(row=1, column=0, padx=10, pady=(0,10), sticky="ew")
+        self.char_name_entry.bind("<Return>", self.start_search_thread)
 
         self.search_button = customtkinter.CTkButton(self.search_frame, text="Search Character", command=self.start_search_thread)
         self.search_button.grid(row=1, column=1, padx=(10,5), pady=(0,10))
@@ -406,6 +437,17 @@ class App(customtkinter.CTk):
             self.deep_search_check.configure(state="normal")
             self.private_league_entry.configure(state="disabled")
 
+    def on_league_change(self, choice):
+        # Filter ascendancies based on league type
+        if "Phrecia" in choice:
+            new_values = ["All"] + TEMPORARY_ASCENDANCIES
+        else:
+            new_values = ["All"] + STANDARD_ASCENDANCIES
+        
+        self.ascendancy_menu.configure(values=new_values)
+        self.ascendancy_menu.set("All")
+        self.show_more_button.configure(state="disabled")
+
     def on_ascendancy_change(self, choice):
         if choice == "All":
             self.show_more_button.configure(state="disabled")
@@ -432,6 +474,7 @@ class App(customtkinter.CTk):
 
                 if league_display_names:
                     self.league_menu.set(league_display_names[0])
+                    self.on_league_change(league_display_names[0])
                 self.status_label.configure(text="Ready.")
             elif isinstance(leagues, dict) and 'error' in leagues:
                 error_message = leagues.get('message', 'An unknown API error occurred.')
@@ -495,7 +538,13 @@ class App(customtkinter.CTk):
             char_class = entry['character']['class']
             if char_class in ascendancy_counts:
                 ascendancy_counts[char_class] += 1
-        return all(count >= self.current_limit for count in ascendancy_counts.values())
+        
+        # Only wait for the ascendancies relevant to the current league type
+        selected_league = self.get_selected_league() or ""
+        if "Phrecia" in selected_league:
+            return all(ascendancy_counts[asc] >= self.current_limit for asc in TEMPORARY_ASCENDANCIES)
+        else:
+            return all(ascendancy_counts[asc] >= self.current_limit for asc in STANDARD_ASCENDANCIES)
 
     def update_textbox(self, output):
         self.textbox.delete("1.0", "end")
@@ -584,7 +633,7 @@ class App(customtkinter.CTk):
         output.append(f"{separator}\n")
         return "".join(output)
 
-    def start_search_thread(self):
+    def start_search_thread(self, event=None):
         char_name = self.char_name_entry.get()
         if not char_name:
             self.textbox.delete("1.0", "end")
@@ -642,6 +691,7 @@ class App(customtkinter.CTk):
                 if char_data['name'].lower() == char_name_to_find.lower():
                     self.found_character_for_race_mode = entry
                     asc_rank = local_ascendancy_counts[ascendancy]
+                    self.found_character_for_race_mode['ascendancy_rank'] = asc_rank
                     
                     result = f"Character Found (in pre-fetched data):\n"
                     result += f"  Name: {char_data['name']}\n"

@@ -1,9 +1,19 @@
-ALL_ASCENDANCY_NAMES = [
+STANDARD_ASCENDANCIES = [
     "Ascendant", "Assassin", "Berserker", "Champion", "Chieftain", 
     "Deadeye", "Elementalist", "Gladiator", "Guardian", "Hierophant", 
     "Inquisitor", "Juggernaut", "Necromancer", "Occultist", "Pathfinder", 
     "Saboteur", "Slayer", "Trickster", "Warden"
 ]
+
+TEMPORARY_ASCENDANCIES = [
+    "Ancestral Commander", "Antiquarian", "Architect of Chaos", "Aristocrat", 
+    "Behemoth", "Blind Prophet", "Bog Shaman", "Daughter of Oshabi", 
+    "Gambler", "Harbinger", "Herald", "Paladin", "Polytheist", 
+    "Puppeteer", "Scavenger", "Servant of Arakaali", "Surfcaster", 
+    "Whisperer", "Wildspeaker"
+]
+
+ALL_ASCENDANCY_NAMES = STANDARD_ASCENDANCIES + TEMPORARY_ASCENDANCIES
 
 def process_ladder_data(all_fetched_entries, selected_ascendancy=None, limit=5):
     """
