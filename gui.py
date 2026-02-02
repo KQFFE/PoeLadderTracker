@@ -1,11 +1,36 @@
 import customtkinter
 import threading
 import time
+import bisect
 # Use the new singleton API client
 from api import GGGAPIClient
 from data_processor import process_ladder_data, ALL_ASCENDANCY_NAMES, STANDARD_ASCENDANCIES, TEMPORARY_ASCENDANCIES
 
 CHUNK_SIZE = 200
+
+# Cumulative XP required to reach each level (Index 0 = Level 1, Index 99 = Level 100)
+XP_THRESHOLDS = [
+    0, 525, 1760, 3785, 7105, 11555, 17490, 24440, 33270, 43480, 
+    55260, 68735, 84025, 101275, 120635, 142245, 166260, 192845, 222180, 254455, 
+    289865, 328635, 371005, 417210, 467495, 522125, 581370, 645520, 714890, 789800, 
+    870610, 957670, 1051380, 1152180, 1260490, 1376770, 1501510, 1635220, 1778470, 1931840, 
+    2095950, 2271400, 2458880, 2659110, 2872840, 3100850, 3344000, 3603180, 3879300, 4173340, 
+    4486300, 4819200, 5173240, 5549440, 5949080, 6373380, 6823740, 7301590, 7808410, 8345790, 
+    9014110, 9642440, 10300330, 10989400, 11711210, 12467530, 13260310, 14091650, 14963630, 15878350,
+    16837910, 17844430, 18900030, 20006830, 21167050, 22383000, 23657000, 24991400, 26389590, 27854000,
+    29387690, 30994240, 32676590, 34438830, 36284680, 38217650, 40241980, 42361570, 44580960, 46904320,
+    49336530, 51882550, 54547440, 57336320, 60254390, 63307990, 66503570, 69847620, 73346730, 77007690,
+    80837590, 84844800, 89037020, 93422240, 98008750, 102805050, 107820020, 113063810, 118546860, 124279830,
+    130273670, 136539690, 143089510, 149935150, 157088920, 164563460, 172371710, 180527890, 189046650, 197943090,
+    207232750, 216932680, 227059440, 237630000, 248661850, 260172950, 272181750, 284707200, 297770640, 311394640,
+    325603050, 340419960, 355870690, 371976740, 388765800, 406268850, 424510040, 443527560, 463351800, 484015380,
+    505552380, 528000000, 551398610, 575781650, 601196630, 627685280, 655293510, 684069220, 714062300, 745323700,
+    777906360, 811865920, 847259890, 884147560, 922590960, 962656590, 1004415360, 1047942660, 1093318250, 1140625140,
+    1189940290, 1241353650, 1294957250, 1350844010, 1409118080, 1469884060, 1533247040, 1599312500, 1668186440, 1740005340,
+    1814886150, 1892956380, 1974354000, 2059217440, 2147686550, 2239902660, 2336008570, 2436158510, 2540508200, 2649215860,
+    2762441200, 2880355400, 3003131150, 3130942660, 3263966290, 3402380750, 3546368010, 3696112040, 3851799730, 4013611040,
+    4181728120, 4250334444
+]
 
 class RaceModeWindow(customtkinter.CTkToplevel):
     def __init__(self, master, target_character_entry):
@@ -16,66 +41,53 @@ class RaceModeWindow(customtkinter.CTkToplevel):
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
         self.title("Race Mode")
-        self.geometry("550x320")
+        self.geometry("560x460")
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=0) # Header
+        self.grid_rowconfigure(1, weight=1) # Main Content
 
         # --- Widgets ---
+        # Save original colors for transparency toggle
+        self.orig_window_bg = self._fg_color
+
+        # --- Header Frame (Row 0) ---
+        self.header_frame = customtkinter.CTkFrame(self, corner_radius=0)
+        self.header_frame.grid(row=0, column=0, sticky="ew", padx=0, pady=0)
+        self.header_frame.grid_columnconfigure(0, weight=1)
+
+        # --- Main Frame (Row 1) ---
         self.main_frame = customtkinter.CTkFrame(self)
-        self.main_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        self.main_frame.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
         self.main_frame.grid_columnconfigure(0, weight=1)
 
-        # --- Controls Frame (Row 0) ---
-        self.controls_frame = customtkinter.CTkFrame(self.main_frame, fg_color="transparent")
-        self.controls_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
-        self.controls_frame.grid_columnconfigure(3, weight=1)
+        self.orig_frame_bg = self.main_frame._fg_color
+        self.header_frame.configure(fg_color=self.orig_frame_bg)
 
-        # Always on Top checkbox (Left)
-        self.always_on_top_var = customtkinter.StringVar(value="on")
-        self.always_on_top_check = customtkinter.CTkCheckBox(self.controls_frame, text="Always on Top", command=self.toggle_always_on_top, variable=self.always_on_top_var, onvalue="on", offvalue="off", width=0)
-        self.always_on_top_check.grid(row=0, column=0, sticky="w", padx=(5, 10))
-        self.toggle_always_on_top() # Set initial state
+        # Left: Tracking + Asc Rank
+        self.tracking_label = customtkinter.CTkLabel(self.header_frame, text="", font=customtkinter.CTkFont(weight="bold"))
+        self.tracking_label.grid(row=0, column=0, sticky="w", padx=5)
 
-        # Transparent Background checkbox (Beneath Always on Top)
-        self.transparent_var = customtkinter.StringVar(value="off")
-        self.transparent_check = customtkinter.CTkCheckBox(self.controls_frame, text="Transparent", command=self.toggle_transparency, variable=self.transparent_var, onvalue="on", offvalue="off", width=0)
-        self.transparent_check.grid(row=1, column=0, sticky="w", padx=(5, 10))
-
-        # Auto Refresh checkbox (Row 0, middle-ish)
-        self.auto_refresh_var = customtkinter.StringVar(value="on")
-        self.auto_refresh_check = customtkinter.CTkCheckBox(self.controls_frame, text="Auto Refresh", variable=self.auto_refresh_var, onvalue="on", offvalue="off", command=self.toggle_auto_refresh, width=0)
-        self.auto_refresh_check.grid(row=0, column=1, sticky="w", padx=10)
-
-        # View Mode Menu
-        self.view_mode_menu = customtkinter.CTkOptionMenu(self.controls_frame, values=["Both", "Ascendancy", "Global"], command=self.toggle_view_mode, width=110)
-        self.view_mode_menu.grid(row=0, column=2, sticky="w", padx=10)
-
-        # Tracking Label (Right)
-        self.header_label = customtkinter.CTkLabel(self.controls_frame, text=f"Tracking: {self.target_entry['character']['name']}", font=customtkinter.CTkFont(weight="bold"))
-        self.header_label.grid(row=0, column=3, sticky="e", padx=5)
-
-        # Rank Label (Right, beneath Tracking)
-        asc_rank = self.target_entry.get('ascendancy_rank', '?')
-        global_rank = self.target_entry.get('rank', '?')
-        self.rank_label = customtkinter.CTkLabel(self.controls_frame, text=f"Global: #{global_rank}  |  Asc: #{asc_rank}", font=customtkinter.CTkFont(size=12))
-        self.rank_label.grid(row=1, column=3, sticky="e", padx=5)
+        # Right: Ladder Name (Class) - No "Ladder" suffix
+        self.ladder_label = customtkinter.CTkLabel(self.header_frame, text=self.target_entry['character']['class'], font=customtkinter.CTkFont(weight="bold", size=14))
+        self.ladder_label.grid(row=0, column=1, sticky="e", padx=5)
 
         # --- Define Colors ---
         BEHIND_COLOR = ("gray75", "gray17") # Slightly darker than frame
         AHEAD_COLOR = ("gray70", "gray14")  # Even darker
+        TRACK_COLOR = ("gray65", "gray25")  # Highlight for tracked char
 
         # --- Display Labels ---
         # Ascendancy Frame (Row 1)
         self.asc_frame = customtkinter.CTkFrame(self.main_frame, fg_color="transparent")
-        self.asc_frame.grid(row=1, column=0, sticky="ew", pady=5)
+        self.asc_frame.grid(row=1, column=0, sticky="ew", pady=(0, 5))
         self.asc_frame.grid_columnconfigure(0, weight=0)
         self.asc_frame.grid_columnconfigure(1, weight=1)
         self.asc_frame.grid_columnconfigure(2, weight=0)
         self.asc_frame.grid_columnconfigure(3, weight=0)
 
         # Ascendancy Ladder
-        self.asc_header = self.create_header_label(self.asc_frame, f"{self.target_entry['character']['class']} Ladder", 0)
-        self.asc_ahead_labels = self.create_info_row(self.asc_frame, "Ahead:", 1, fg_color=AHEAD_COLOR)
+        self.asc_ahead_labels = self.create_info_row(self.asc_frame, "Ahead:", 0, fg_color=AHEAD_COLOR)
+        self.asc_track_labels = self.create_info_row(self.asc_frame, "You:", 1, fg_color=TRACK_COLOR)
         self.asc_behind_labels = self.create_info_row(self.asc_frame, "Behind:", 2, fg_color=BEHIND_COLOR)
 
         # Global Frame (Row 2)
@@ -89,25 +101,52 @@ class RaceModeWindow(customtkinter.CTkToplevel):
         # Global Ladder
         self.global_header = self.create_header_label(self.global_frame, "Global Ladder", 0)
         self.global_ahead_labels = self.create_info_row(self.global_frame, "Ahead:", 1, fg_color=AHEAD_COLOR)
-        self.global_behind_labels = self.create_info_row(self.global_frame, "Behind:", 2, fg_color=BEHIND_COLOR)
+        self.global_track_labels = self.create_info_row(self.global_frame, "You:", 2, fg_color=TRACK_COLOR)
+        self.global_behind_labels = self.create_info_row(self.global_frame, "Behind:", 3, fg_color=BEHIND_COLOR)
         
-        # Refresh button
-        self.refresh_button = customtkinter.CTkButton(self.main_frame, text="Refresh", command=self.refresh_data_thread)
-        self.refresh_button.grid(row=3, column=0, pady=(15, 5), sticky="ew", padx=10)
+        # --- Footer Frame (Row 3) ---
+        self.footer_frame = customtkinter.CTkFrame(self.main_frame, fg_color="transparent")
+        self.footer_frame.grid(row=3, column=0, sticky="ew", padx=5, pady=10)
+        self.footer_frame.grid_columnconfigure(3, weight=1) # Spacer
 
+        # Always on Top checkbox (Left)
+        self.always_on_top_var = customtkinter.StringVar(value="on")
+        self.always_on_top_check = customtkinter.CTkCheckBox(self.footer_frame, text="Always on Top", command=self.toggle_always_on_top, variable=self.always_on_top_var, onvalue="on", offvalue="off")
+        self.always_on_top_check.grid(row=0, column=0, sticky="w", padx=(5, 5))
+        self.toggle_always_on_top() # Set initial state
+
+        # Transparent Background checkbox
+        self.transparent_var = customtkinter.StringVar(value="off")
+        self.transparent_check = customtkinter.CTkCheckBox(self.footer_frame, text="Transparent", command=self.toggle_transparency, variable=self.transparent_var, onvalue="on", offvalue="off")
+        self.transparent_check.grid(row=0, column=1, sticky="w", padx=(5, 5))
+
+        # Auto Refresh checkbox
+        self.auto_refresh_var = customtkinter.StringVar(value="on")
+        self.auto_refresh_check = customtkinter.CTkCheckBox(self.footer_frame, text="Auto Refresh", variable=self.auto_refresh_var, onvalue="on", offvalue="off", command=self.toggle_auto_refresh)
+        self.auto_refresh_check.grid(row=0, column=2, sticky="w", padx=(5, 5))
+
+        # View Mode Menu (Rightmost)
+        self.view_mode_menu = customtkinter.CTkOptionMenu(self.footer_frame, values=["Ladders", "Ascendancy", "Global"], command=self.toggle_view_mode, width=110)
+        self.view_mode_menu.grid(row=0, column=4, sticky="e", padx=5)
+
+        # Refresh button (Row 4)
+        self.refresh_button = customtkinter.CTkButton(self.main_frame, text="Refresh", command=self.refresh_data_thread)
+        self.refresh_button.grid(row=4, column=0, pady=(5, 5), sticky="ew", padx=10)
+
+        self.update_header_info()
         self.toggle_auto_refresh() # Set initial button state
         self.refresh_data_thread() # Initial data load
 
     def toggle_view_mode(self, choice):
-        if choice == "Both":
-            self.asc_frame.grid(row=1, column=0, sticky="ew", pady=5)
+        if choice == "Ladders":
+            self.asc_frame.grid(row=1, column=0, sticky="ew", pady=(0, 5))
             self.global_frame.grid(row=2, column=0, sticky="ew", pady=5)
         elif choice == "Ascendancy":
-            self.asc_frame.grid(row=1, column=0, sticky="ew", pady=5)
+            self.asc_frame.grid(row=1, column=0, sticky="ew", pady=(0, 5))
             self.global_frame.grid_forget()
         elif choice == "Global":
             self.asc_frame.grid_forget()
-            self.global_frame.grid(row=2, column=0, sticky="ew", pady=5)
+            self.global_frame.grid(row=1, column=0, sticky="ew", pady=(0, 5))
 
     def create_header_label(self, parent, text, row):
         label = customtkinter.CTkLabel(parent, text=text, font=customtkinter.CTkFont(weight="bold", underline=True))
@@ -122,8 +161,9 @@ class RaceModeWindow(customtkinter.CTkToplevel):
         # Configure columns within the frame to match the desired layout
         row_frame.grid_columnconfigure(0, weight=0) # Title
         row_frame.grid_columnconfigure(1, weight=1) # Name
-        row_frame.grid_columnconfigure(2, weight=0) # XP
-        row_frame.grid_columnconfigure(3, weight=0) # Rank
+        row_frame.grid_columnconfigure(2, weight=0) # Progress Bar
+        row_frame.grid_columnconfigure(3, weight=0) # XP
+        row_frame.grid_columnconfigure(4, weight=0) # Rank
 
         # Title (Col 0)
         title_label = customtkinter.CTkLabel(row_frame, text=title, width=60, anchor="w", fg_color=fg_color)
@@ -133,15 +173,20 @@ class RaceModeWindow(customtkinter.CTkToplevel):
         name_label = customtkinter.CTkLabel(row_frame, text="--", anchor="w", fg_color=fg_color)
         name_label.grid(row=0, column=1, sticky="ew", ipady=3, padx=5)
         
-        # XP (Col 2)
-        xp_label = customtkinter.CTkLabel(row_frame, text="--", width=100, anchor="e", fg_color=fg_color)
-        xp_label.grid(row=0, column=2, sticky="ew", ipady=3, padx=5)
+        # Progress Bar (Col 2)
+        progress_bar = customtkinter.CTkProgressBar(row_frame, height=10, width=100, corner_radius=0, progress_color="#2CC985", fg_color="white")
+        progress_bar.grid(row=0, column=2, sticky="ew", padx=5)
+        progress_bar.set(0)
+
+        # XP (Col 3)
+        xp_label = customtkinter.CTkLabel(row_frame, text="--", width=130, anchor="e", fg_color=fg_color)
+        xp_label.grid(row=0, column=3, sticky="ew", ipady=3, padx=5)
         
-        # Rank (Col 3)
+        # Rank (Col 4)
         rank_label = customtkinter.CTkLabel(row_frame, text="#--", width=60, anchor="e", fg_color=fg_color)
-        rank_label.grid(row=0, column=3, sticky="ew", ipady=3, padx=(0,5))
+        rank_label.grid(row=0, column=4, sticky="ew", ipady=3, padx=(0,5))
         
-        return name_label, xp_label, rank_label
+        return name_label, xp_label, rank_label, progress_bar
 
     def toggle_always_on_top(self):
         is_on_top = self.always_on_top_var.get() == "on"
@@ -149,8 +194,17 @@ class RaceModeWindow(customtkinter.CTkToplevel):
 
     def toggle_transparency(self):
         if self.transparent_var.get() == "on":
-            self.attributes("-alpha", 0.85)
+            # Use a specific color as the transparent key to make background invisible
+            # but keep text and widgets opaque.
+            TRANS_COLOR = "#000001"
+            self.configure(fg_color=TRANS_COLOR)
+            self.main_frame.configure(fg_color=TRANS_COLOR)
+            self.attributes("-transparentcolor", TRANS_COLOR)
+            self.attributes("-alpha", 1.0)
         else:
+            self.configure(fg_color=self.orig_window_bg)
+            self.main_frame.configure(fg_color=self.orig_frame_bg)
+            self.attributes("-transparentcolor", "")
             self.attributes("-alpha", 1.0)
 
     def toggle_auto_refresh(self):
@@ -158,7 +212,7 @@ class RaceModeWindow(customtkinter.CTkToplevel):
             if self.auto_refresh_job:
                 self.after_cancel(self.auto_refresh_job)
                 self.auto_refresh_job = None
-            self.refresh_button.grid(row=3, column=0, pady=(15, 5), sticky="ew", padx=10)
+            self.refresh_button.grid(row=4, column=0, pady=(5, 5), sticky="ew", padx=10)
         else:
             # If turned on, schedule a refresh if one isn't already running/scheduled
             if not self.auto_refresh_job:
@@ -182,19 +236,78 @@ class RaceModeWindow(customtkinter.CTkToplevel):
         selected_league_input = self.master_app.get_selected_league()
         deep_search = self.master_app.deep_search_check.get() == 1
         league_id = self.master_app._get_league_id_from_name(selected_league_input)
+        target_name = self.target_entry['character']['name'].lower()
 
-        target_rank = self.target_entry['rank']
-        # Increase fetch window to 200 to maximize chance of finding ascendancy neighbors
-        limit = 200
-        offset = max(0, target_rank - (limit // 2))
+        # Scan from the top to ensure accurate Ascendancy Rank
+        current_offset = 0
+        ascendancy_counts = {asc: 0 for asc in ALL_ASCENDANCY_NAMES}
+        found_entry = None
+        surrounding_entries = []
+        prev_chunk = []
 
-        surrounding_data = GGGAPIClient.fetch_ladder(league_id, limit=limit, offset=offset, deep_search=deep_search)
+        while True:
+            if not self.winfo_exists(): return
 
-        if surrounding_data and surrounding_data.get('entries'):
-            self.after(0, self.process_and_display_data, surrounding_data['entries'])
+            data = GGGAPIClient.fetch_ladder(league_id, limit=CHUNK_SIZE, offset=current_offset, deep_search=deep_search)
+            
+            if not data or 'entries' not in data:
+                break
+
+            entries = data['entries']
+            if not entries:
+                break
+
+            for i, entry in enumerate(entries):
+                char_data = entry['character']
+                asc = char_data['class']
+                
+                if asc in ascendancy_counts:
+                    ascendancy_counts[asc] += 1
+                
+                # Stamp ranks on every entry so neighbors have data
+                entry['ascendancy_rank'] = ascendancy_counts.get(asc)
+                entry['rank'] = current_offset + i + 1
+                
+                if char_data['name'].lower() == target_name:
+                    found_entry = entry
+                    
+                    # Construct context for neighbors
+                    context = []
+                    if prev_chunk:
+                        context.extend(prev_chunk[-10:])
+                    context.extend(entries)
+                    
+                    # If near end, try to fetch next chunk for "Behind" neighbor
+                    if i >= len(entries) - 2:
+                         next_data = GGGAPIClient.fetch_ladder(league_id, limit=10, offset=current_offset + CHUNK_SIZE, deep_search=deep_search)
+                         if next_data and 'entries' in next_data:
+                             # Process ranks for next chunk context
+                             for n_i, n_entry in enumerate(next_data['entries']):
+                                 n_asc = n_entry['character']['class']
+                                 if n_asc in ascendancy_counts:
+                                     ascendancy_counts[n_asc] += 1
+                                 n_entry['ascendancy_rank'] = ascendancy_counts.get(n_asc)
+                                 n_entry['rank'] = current_offset + CHUNK_SIZE + n_i + 1
+                             context.extend(next_data['entries'])
+
+                    surrounding_entries = context
+            
+            if found_entry:
+                break
+
+            prev_chunk = entries
+            current_offset += CHUNK_SIZE
+            
+            time.sleep(0.1) # Prevent UI freeze during deep scans
+            if current_offset >= 15000 and not deep_search:
+                break
+            if current_offset > 20000: # Safety cap
+                break
+
+        if found_entry:
+            self.after(0, self.process_and_display_data, surrounding_entries, found_entry)
         else:
-            # Handle API errors or empty responses
-            error_message = "Failed to fetch race data. API error or character not found."
+            error_message = "Character not found in ladder."
             self.after(0, self.global_ahead_labels[0].configure, {"text": error_message})
         self.after(0, self.on_refresh_complete)
 
@@ -204,11 +317,14 @@ class RaceModeWindow(customtkinter.CTkToplevel):
         if self.auto_refresh_var.get() == "on":
             self.auto_refresh_job = self.after(60000, self.refresh_data_thread)
 
-    def process_and_display_data(self, surrounding_entries):
+    def process_and_display_data(self, surrounding_entries, updated_entry=None):
         my_original_name = self.target_entry['character']['name']
         
         # Find the updated entry for the target character
-        my_new_entry = next((e for e in surrounding_entries if e['character']['name'] == my_original_name), None)
+        if updated_entry:
+            my_new_entry = updated_entry
+        else:
+            my_new_entry = next((e for e in surrounding_entries if e['character']['name'] == my_original_name), None)
         
         if not my_new_entry:
             # Handle case where character is not found in the refreshed data
@@ -218,42 +334,63 @@ class RaceModeWindow(customtkinter.CTkToplevel):
             self.global_behind_labels[0].configure(text="")
             return
 
-        # Preserve ascendancy_rank from previous entry as we can't recalculate it easily in a slice
-        if 'ascendancy_rank' in self.target_entry:
-            my_new_entry['ascendancy_rank'] = self.target_entry['ascendancy_rank']
-
         # Update the window's state for the next refresh
         self.target_entry = my_new_entry
         
-        # Update Rank Label
-        asc_rank = self.target_entry.get('ascendancy_rank', '?')
-        global_rank = self.target_entry.get('rank', '?')
-        self.rank_label.configure(text=f"Global: #{global_rank}  |  Asc: #{asc_rank}")
+        # Update Header
+        self.update_header_info()
 
         my_new_xp = int(my_new_entry['character']['experience'])
         my_ascendancy = my_new_entry['character']['class']
 
-        def update_row_data(labels, neighbor_entry, target_xp):
-            name_label, xp_label, rank_label = labels
+        def update_row_data(labels, neighbor_entry, target_xp, rank_field='rank'):
+            name_label, xp_label, rank_label, progress_bar = labels
             if neighbor_entry:
                 neighbor_xp = int(neighbor_entry['character']['experience'])
                 xp_diff = neighbor_xp - target_xp
                 name_label.configure(text=f"{neighbor_entry['character']['name']} (Lvl {neighbor_entry['character']['level']})")
-                xp_label.configure(text=f"XP: {xp_diff:+,}")
                 
-                if xp_diff > 0:
-                    xp_label.configure(text_color="#2CC985") # Green
-                elif xp_diff < 0:
-                    xp_label.configure(text_color="#FF5252") # Red
+                # Check if this is the tracked character
+                if neighbor_entry['character']['name'] == self.target_entry['character']['name']:
+                     xp_label.configure(text=f"XP: {neighbor_xp:,}")
+                     xp_label.configure(text_color=("black", "white"))
                 else:
-                    xp_label.configure(text_color=("black", "white"))
+                    xp_label.configure(text=f"XP: {xp_diff:+,}")
+                    if xp_diff > 0:
+                        xp_label.configure(text_color="#2CC985") # Green
+                    elif xp_diff < 0:
+                        xp_label.configure(text_color="#FF5252") # Red
+                    else:
+                        xp_label.configure(text_color=("black", "white"))
 
-                rank_label.configure(text=f"#{neighbor_entry['rank']}")
+                rank_val = neighbor_entry.get(rank_field, '?')
+                rank_label.configure(text=f"#{rank_val}")
+                
+                # Calculate Level Progress
+                lvl = neighbor_entry['character']['level']
+                curr_xp = neighbor_xp
+                
+                if lvl >= 100:
+                    progress = 1.0
+                elif curr_xp > 0:
+                    # Dynamically find the XP bracket to ensure valid progress calculation
+                    # regardless of the XP_THRESHOLDS list structure
+                    idx = bisect.bisect_right(XP_THRESHOLDS, curr_xp) - 1
+                    if idx >= 0 and idx < len(XP_THRESHOLDS) - 1:
+                        start_xp = XP_THRESHOLDS[idx]
+                        end_xp = XP_THRESHOLDS[idx + 1]
+                        progress = (curr_xp - start_xp) / (end_xp - start_xp) if end_xp > start_xp else 0
+                    else:
+                        progress = 1.0 if idx >= len(XP_THRESHOLDS) - 1 else 0
+                else:
+                    progress = 0
+                progress_bar.set(progress)
             else:
                 name_label.configure(text="N/A")
                 xp_label.configure(text="")
                 xp_label.configure(text_color=("black", "white"))
                 rank_label.configure(text="")
+                progress_bar.set(0)
 
         # Helper to find neighbors in cached data if live data fails
         def get_fallback_neighbor(target_list, target_name, direction="ahead"):
@@ -281,6 +418,7 @@ class RaceModeWindow(customtkinter.CTkToplevel):
 
             update_row_data(self.global_ahead_labels, global_ahead, my_new_xp)
             update_row_data(self.global_behind_labels, global_behind, my_new_xp)
+            update_row_data(self.global_track_labels, my_new_entry, my_new_xp)
         except ValueError:
             self.global_ahead_labels[0].configure(text="Error processing global rank.")
             self.global_behind_labels[0].configure(text="")
@@ -295,11 +433,18 @@ class RaceModeWindow(customtkinter.CTkToplevel):
             asc_behind = asc_entries[asc_idx + 1] if asc_idx < len(asc_entries) - 1 else None
             if not asc_behind: asc_behind = get_fallback_neighbor(cached_asc_entries, my_original_name, "behind")
             
-            update_row_data(self.asc_ahead_labels, asc_ahead, my_new_xp)
-            update_row_data(self.asc_behind_labels, asc_behind, my_new_xp)
+            update_row_data(self.asc_ahead_labels, asc_ahead, my_new_xp, 'ascendancy_rank')
+            update_row_data(self.asc_behind_labels, asc_behind, my_new_xp, 'ascendancy_rank')
+            update_row_data(self.asc_track_labels, my_new_entry, my_new_xp, 'ascendancy_rank')
         except ValueError:
             self.asc_ahead_labels[0].configure(text="Error processing ascendancy rank.")
             self.asc_behind_labels[0].configure(text="")
+
+    def update_header_info(self):
+        asc_rank = self.target_entry.get('ascendancy_rank', '?')
+        name = self.target_entry['character']['name']
+        text = f"Tracking: {name}  |  Asc: #{asc_rank}"
+        self.tracking_label.configure(text=text)
 
 class App(customtkinter.CTk):
     def __init__(self):
@@ -679,35 +824,6 @@ class App(customtkinter.CTk):
 
         char_name_to_find = self.char_name_entry.get().strip()
 
-        # --- 1. Search already fetched data first for an instant result ---
-        if self.all_fetched_entries:
-            self.status_label.configure(text=f"Searching {len(self.all_fetched_entries)} pre-fetched entries...")
-            local_ascendancy_counts = {asc: 0 for asc in ALL_ASCENDANCY_NAMES}
-            for entry in self.all_fetched_entries:
-                char_data = entry['character']
-                ascendancy = char_data['class']
-                if ascendancy in local_ascendancy_counts: local_ascendancy_counts[ascendancy] += 1
-                
-                if char_data['name'].lower() == char_name_to_find.lower():
-                    self.found_character_for_race_mode = entry
-                    asc_rank = local_ascendancy_counts[ascendancy]
-                    self.found_character_for_race_mode['ascendancy_rank'] = asc_rank
-                    
-                    result = f"Character Found (in pre-fetched data):\n"
-                    result += f"  Name: {char_data['name']}\n"
-                    result += f"  Level: {char_data['level']}\n"
-                    result += f"  Class: {char_data['class']}\n\n"
-                    result += f"  ---\n"
-                    result += f"  Global Rank: {entry['rank']}\n"
-                    result += f"  Ascendancy Rank (in fetched list): {asc_rank}"
-                    
-                    self.after(0, self.update_textbox, result)
-                    self.after(0, self.status_label.configure, {"text": f"Search complete. Found {char_name_to_find} locally."})
-                    self.after(0, self.race_mode_button.configure, {"state": "normal"})
-                    self.after(0, self.reset_button_states)
-                    return
-
-        # --- 2. If not found locally, start a full remote search ---
         current_offset = 0
         self.all_fetched_entries = [] # Clear cache for new search
         found_entry = None
@@ -729,8 +845,9 @@ class App(customtkinter.CTk):
                 break
             
             self.all_fetched_entries.extend(entries) # Store for Race Mode fallback
+            self.current_offset = current_offset + CHUNK_SIZE # Sync state so "Show More" works correctly
 
-            for entry in data['entries']:
+            for i, entry in enumerate(data['entries']):
                 if self.stop_search_event.is_set():
                     break
                 char_data = entry['character']
@@ -739,10 +856,11 @@ class App(customtkinter.CTk):
                 if ascendancy in ascendancy_counts:
                     ascendancy_counts[ascendancy] += 1
 
+                entry['ascendancy_rank'] = ascendancy_counts.get(ascendancy)
+                entry['rank'] = current_offset + i + 1
+
                 if entry['character']['name'].lower() == char_name_to_find.lower():
                     found_entry = entry
-                    found_entry['ascendancy_rank'] = ascendancy_counts.get(ascendancy)
-                    break
             
             if found_entry:
                 break
@@ -751,7 +869,7 @@ class App(customtkinter.CTk):
             if current_offset >= 15000 and not deep_search:
                 break
             
-            time.sleep(0.5)
+            time.sleep(0.1) # Reduced sleep for faster searching
 
         if self.stop_search_event.is_set():
             self.after(0, self.status_label.configure, {"text": "Search stopped."})
