@@ -87,9 +87,24 @@ function toggleAutoRefresh() {
     
     if (isChecked) {
         raceInterval = setInterval(updateRaceData, 60000); // 60s
-        if (btn) btn.style.display = 'none';
+        if (btn && btn.style.display !== 'none') {
+            const isInitial = btn.style.display === '';
+            const container = btn.parentElement;
+            const oldHeight = container.offsetHeight;
+            btn.style.display = 'none';
+            if (!isInitial) {
+                const newHeight = container.offsetHeight;
+                window.resizeBy(0, newHeight - oldHeight);
+            }
+        }
     } else {
-        if (btn) btn.style.display = 'block';
+        if (btn && btn.style.display === 'none') {
+            const container = btn.parentElement;
+            const oldHeight = container.offsetHeight;
+            btn.style.display = 'block';
+            const newHeight = container.offsetHeight;
+            window.resizeBy(0, newHeight - oldHeight);
+        }
     }
 }
 

@@ -5,9 +5,9 @@
     <title>Race Mode</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
-        body { margin: 0; background-color: #242424; color: #eeeeee; font-family: 'Segoe UI', sans-serif; height: 100vh; overflow: hidden; }
-        .container { display: flex; flex-direction: column; height: 100%; max-width: none; padding: 0; }
-        #raceModeContainer { display: flex; flex-direction: column; height: 100%; }
+        body { margin: 0; padding: 10px; background-color: #242424; color: #eeeeee; font-family: 'Segoe UI', sans-serif; height: 100vh; overflow: hidden; box-sizing: border-box; }
+        .container { display: flex; flex-direction: column; height: 100%; max-width: none; padding: 0; box-sizing: border-box; }
+        #raceModeContainer { display: flex; flex-direction: column; height: 100%; box-sizing: border-box; }
         .header-frame { display: flex; justify-content: space-between; padding: 5px 10px; background-color: #2b2b2b; flex-shrink: 0; }
         .main-frame { flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; }
         .footer-frame { display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; background-color: transparent; flex-shrink: 0; }
@@ -18,11 +18,24 @@
         button { background-color: #1f6aa5; color: white; border: none; padding: 8px; cursor: pointer; font-family: 'Segoe UI', sans-serif; font-weight: bold; border-radius: 4px; }
         button:hover { background-color: #144870; }
         button:disabled { background-color: #3a3a3a; color: #888; cursor: default; }
-        .checkbox-label { cursor: pointer; user-select: none; font-size: 13px; display: flex; align-items: center; }
+        select { 
+            background-color: #1f6aa5; color: white; border: none; padding: 5px 35px 5px 10px; border-radius: 4px; outline: none; cursor: pointer; font-family: 'Segoe UI', sans-serif; font-weight: bold;
+            appearance: none; -webkit-appearance: none; -moz-appearance: none;
+            background-image: 
+                url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e"),
+                linear-gradient(to left, rgba(0,0,0,0.2) 1px, transparent 1px),
+                linear-gradient(to left, #144870 30px, transparent 30px);
+            background-position: right 3px center, right 30px center, center;
+            background-size: 24px 24px, 1px 100%, 100% 100%;
+            background-repeat: no-repeat;
+        }
+        select:hover { background-color: #144870; }
+        option { background-color: #2b2b2b; color: white; }
+        .checkbox-label { cursor: pointer; user-select: none; font-size: 13px; display: flex; align-items: center; white-space: nowrap; }
         .checkbox-label input { display: none; }
         .checkbox-custom {
             width: 16px; height: 16px; background-color: #3a3a3a; border: 1px solid #555; border-radius: 4px;
-            margin-right: 8px; position: relative; display: inline-block;
+            margin-right: 8px; position: relative; display: inline-block; flex-shrink: 0;
         }
         .checkbox-label input:checked + .checkbox-custom {
             background-color: #1f6aa5; border-color: #1f6aa5;
@@ -41,7 +54,7 @@
             <!-- Header Row -->
             <div class="header-frame">
                 <div id="trackingHeader" style="font-weight: bold;">Tracking: --</div>
-                <div id="classHeader" style="font-weight: bold; font-size: 14px;">--</div>
+                <div id="classHeader" style="font-weight: bold; font-size: 16px;">--</div>
             </div>
 
             <!-- Main Content -->
@@ -63,7 +76,7 @@
                         <span class="checkbox-custom"></span>Auto Refresh
                     </label>
                 </div>
-                <select id="viewModeSelect" onchange="toggleRaceView()">
+                <select id="viewModeSelect" onchange="toggleRaceView()" style="width: 200px;">
                     <option value="both">Ladders</option>
                     <option value="ascendancy">Ascendancy</option>
                     <option value="global">Global</option>
