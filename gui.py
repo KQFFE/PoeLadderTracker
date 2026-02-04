@@ -2,6 +2,7 @@ import customtkinter
 import threading
 import time
 import bisect
+import webbrowser
 # Use the new singleton API client
 from api import GGGAPIClient
 from data_processor import process_ladder_data, ALL_ASCENDANCY_NAMES, STANDARD_ASCENDANCIES, TEMPORARY_ASCENDANCIES
@@ -566,6 +567,33 @@ class App(customtkinter.CTk):
         self.ascendancy_menu.set("All")
         self.show_more_button.configure(state="disabled")
 
+    def open_poe_ninja(self, league, account_name, char_name):
+        if not account_name: return
+        
+        slug = league.lower()
+        if slug == "standard": slug = "standard"
+        elif slug == "hardcore": slug = "hardcore"
+        elif slug == "ssf standard": slug = "ssf"
+        elif slug == "ssf hardcore": slug = "hcssf"
+        else:
+            prefix = ""
+            suffix = ""
+            if slug.startswith("ssf "):
+                slug = slug[4:]
+                suffix = "ssf"
+            if slug.startswith("hardcore "):
+                slug = slug[9:]
+                prefix = "hc"
+            elif slug.startswith("hc "):
+                slug = slug[3:]
+                prefix = "hc"
+            slug = slug.replace(" ", "")
+            slug = f"{prefix}{slug}{suffix}"
+
+        formatted_account = account_name.replace("#", "-")
+        url = f"https://poe.ninja/builds/{slug}/character/{formatted_account}/{char_name}"
+        webbrowser.open_new_tab(url)
+
     def on_ascendancy_change(self, choice):
         if choice == "All":
             self.show_more_button.configure(state="disabled")
@@ -689,6 +717,9 @@ class App(customtkinter.CTk):
             customtkinter.CTkFrame(self.results_frame, height=3, fg_color=HEADER_SEPARATOR_COLOR, corner_radius=0).pack(fill="x", padx=5)
             self.results_initialized = True
 
+        # Create lookup for account names from raw entries
+        char_to_acc = {e['character']['name']: e.get('account', {}).get('name') for e in self.all_fetched_entries}
+
         for char in final_results:
             if char['name'] in self.displayed_character_names:
                 continue
@@ -742,6 +773,12 @@ class App(customtkinter.CTk):
 
             name_label = customtkinter.CTkLabel(row_frame, text=char['name'], anchor="w")
             name_label.pack(side="left", padx=10, pady=4, expand=True, fill="x")
+
+            # Make name clickable if account name is available
+            acc_name = char_to_acc.get(char['name'])
+            if acc_name:
+                name_label.configure(text_color="#4da6ff", cursor="hand2")
+                name_label.bind("<Button-1>", lambda e, l=league, a=acc_name, c=char['name']: self.open_poe_ninja(l, a, c))
 
             # Hover effect
             def on_enter(e, wf=row_frame): wf.configure(fg_color=HOVER_COLOR)

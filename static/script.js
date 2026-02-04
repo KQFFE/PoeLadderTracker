@@ -45,6 +45,35 @@ function calculateProgress(level, xp) {
     return Math.max(0, Math.min(100, progress * 100));
 }
 
+function getPoeNinjaSlug(leagueId) {
+    let slug = leagueId.toLowerCase();
+    
+    // Permanent leagues
+    if (slug === 'standard') return 'standard';
+    if (slug === 'hardcore') return 'hardcore';
+    if (slug === 'ssf standard') return 'ssf';
+    if (slug === 'ssf hardcore') return 'hcssf';
+
+    let prefix = '';
+    let suffix = '';
+
+    if (slug.startsWith('ssf ')) {
+        slug = slug.substring(4);
+        suffix = 'ssf';
+    }
+    
+    if (slug.startsWith('hardcore ')) {
+        slug = slug.substring(9);
+        prefix = 'hc';
+    } else if (slug.startsWith('hc ')) {
+        slug = slug.substring(3);
+        prefix = 'hc';
+    }
+
+    slug = slug.replace(/ /g, '');
+    return `${prefix}${slug}${suffix}`;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     fetchLeagues();
     document.getElementById('leagueSelect').addEventListener('change', populateAscendancies);
@@ -341,10 +370,18 @@ async function searchCharacter() {
         updateStatus(`Found ${foundCharacterEntry.character.name}!`);
         
         const char = foundCharacterEntry.character;
+        const leagueId = getSelectedLeagueId();
+        const leagueSlug = getPoeNinjaSlug(leagueId);
+        const accName = foundCharacterEntry.account ? foundCharacterEntry.account.name : null;
+        const formattedAccName = accName ? accName.replace('#', '-') : null;
+        const nameDisplay = accName 
+            ? `<a href="https://poe.ninja/builds/${leagueSlug}/character/${encodeURIComponent(formattedAccName)}/${encodeURIComponent(char.name)}" target="_blank" style="color: #4da6ff; text-decoration: none;">${char.name}</a>`
+            : char.name;
+
         const html = `
             <div style="padding: 0 20px 20px 20px; font-family: 'Segoe UI', sans-serif; color: #E0E0E0; font-size: 18px; line-height: 1.5; white-space: normal;">
                 <div style="font-size: 1.5em; font-weight: bold; margin-bottom: 40px; color: #4da6ff;">Character Found:</div>
-                <div style="margin-bottom: 0px;"><span style="color: #aaa; font-weight: bold; width: 100px; display: inline-block;">Name:</span> ${char.name}</div>
+                <div style="margin-bottom: 0px;"><span style="color: #aaa; font-weight: bold; width: 100px; display: inline-block;">Name:</span> ${nameDisplay}</div>
                 <div style="margin-bottom: 0px;"><span style="color: #aaa; font-weight: bold; width: 100px; display: inline-block;">Level:</span> ${char.level}</div>
                 <div style="margin-bottom: 20px;"><span style="color: #aaa; font-weight: bold; width: 100px; display: inline-block;">Class:</span> ${char.class}</div>
                 <div style="margin-bottom: 0px;"><span style="color: #aaa; font-weight: bold; width: 150px; display: inline-block;">Global Rank:</span> ${foundCharacterEntry.rank}</div>
@@ -562,7 +599,8 @@ function processLadderData(entries, selectedAscendancy, limit) {
             xp: entry.character.experience,
             ascendancy: asc,
             global_rank: entry.rank,
-            asc_rank: ascCounts[asc]
+            asc_rank: ascCounts[asc],
+            account_name: entry.account ? entry.account.name : null
         };
 
         if (selectedAscendancy) {
@@ -616,10 +654,15 @@ function formatResults(results, league) {
             }
         }
         const progress = calculateProgress(char.level, char.xp);
+        const leagueSlug = getPoeNinjaSlug(league);
+        const nameHtml = char.account_name 
+            ? `<a href="https://poe.ninja/builds/${leagueSlug}/character/${encodeURIComponent(char.account_name.replace('#', '-'))}/${encodeURIComponent(char.name)}" target="_blank" style="color: #4da6ff; text-decoration: none;">${char.name}</a>`
+            : char.name;
+
         output += `<tr>
             <td style="padding: 4px 10px;">${char.ascendancy}</td>
             <td style="text-align: center; padding: 4px 10px;">${char.level}</td>
-            <td style="padding: 4px 10px;">${char.name}</td>
+            <td style="padding: 4px 10px;">${nameHtml}</td>
             <td style="padding: 4px 10px;"><div style="background-color: #eee; height: 8px; width: 100%;"><div style="background-color: #2CC985; height: 100%; width: ${progress}%;"></div></div></td>
             <td style="text-align: right; padding: 4px 10px;">${char.asc_rank} / ${char.global_rank}</td>
         </tr>`;
