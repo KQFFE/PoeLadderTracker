@@ -154,6 +154,10 @@ function getSelectedLeagueId() {
 }
 
 async function fetchCharacters() {
+    // Signal any other running process to stop.
+    stopSearch();
+    await new Promise(r => setTimeout(r, 50)); // Give other loops a moment to break
+
     currentLimit = 10;
     currentOffset = 0;
     allFetchedEntries = [];
@@ -252,6 +256,10 @@ function shouldStopFetching(ascendancy) {
 }
 
 async function searchCharacter() {
+    // Signal any other running process to stop.
+    stopSearch();
+    await new Promise(r => setTimeout(r, 50)); // Give other loops a moment to break
+
     const charName = document.getElementById('charNameInput').value.trim();
     const leagueId = getSelectedLeagueId();
     

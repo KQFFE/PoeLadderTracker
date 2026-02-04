@@ -218,3 +218,10 @@ button:hover:not(:disabled) { background-color: #144870; }
 .xp-neutral { color: #ccc; }
 
 .full-width-btn { width: 100%; margin-top: 10px; }
+
+.disclaimer {
+    margin-top: 20px;
+    color: gray;
+    font-size: 0.8em;
+    text-align: center;
+}
