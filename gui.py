@@ -10,26 +10,16 @@ CHUNK_SIZE = 200
 
 # Cumulative XP required to reach each level (Index 0 = Level 1, Index 99 = Level 100)
 XP_THRESHOLDS = [
-    0, 525, 1760, 3785, 7105, 11555, 17490, 24440, 33270, 43480, 
-    55260, 68735, 84025, 101275, 120635, 142245, 166260, 192845, 222180, 254455, 
-    289865, 328635, 371005, 417210, 467495, 522125, 581370, 645520, 714890, 789800, 
-    870610, 957670, 1051380, 1152180, 1260490, 1376770, 1501510, 1635220, 1778470, 1931840, 
-    2095950, 2271400, 2458880, 2659110, 2872840, 3100850, 3344000, 3603180, 3879300, 4173340, 
-    4486300, 4819200, 5173240, 5549440, 5949080, 6373380, 6823740, 7301590, 7808410, 8345790, 
-    9014110, 9642440, 10300330, 10989400, 11711210, 12467530, 13260310, 14091650, 14963630, 15878350,
-    16837910, 17844430, 18900030, 20006830, 21167050, 22383000, 23657000, 24991400, 26389590, 27854000,
-    29387690, 30994240, 32676590, 34438830, 36284680, 38217650, 40241980, 42361570, 44580960, 46904320,
-    49336530, 51882550, 54547440, 57336320, 60254390, 63307990, 66503570, 69847620, 73346730, 77007690,
-    80837590, 84844800, 89037020, 93422240, 98008750, 102805050, 107820020, 113063810, 118546860, 124279830,
-    130273670, 136539690, 143089510, 149935150, 157088920, 164563460, 172371710, 180527890, 189046650, 197943090,
-    207232750, 216932680, 227059440, 237630000, 248661850, 260172950, 272181750, 284707200, 297770640, 311394640,
-    325603050, 340419960, 355870690, 371976740, 388765800, 406268850, 424510040, 443527560, 463351800, 484015380,
-    505552380, 528000000, 551398610, 575781650, 601196630, 627685280, 655293510, 684069220, 714062300, 745323700,
-    777906360, 811865920, 847259890, 884147560, 922590960, 962656590, 1004415360, 1047942660, 1093318250, 1140625140,
-    1189940290, 1241353650, 1294957250, 1350844010, 1409118080, 1469884060, 1533247040, 1599312500, 1668186440, 1740005340,
-    1814886150, 1892956380, 1974354000, 2059217440, 2147686550, 2239902660, 2336008570, 2436158510, 2540508200, 2649215860,
-    2762441200, 2880355400, 3003131150, 3130942660, 3263966290, 3402380750, 3546368010, 3696112040, 3851799730, 4013611040,
-    4181728120, 4250334444
+    0, 525, 1760, 3781, 7184, 12186, 19324, 29377, 43181, 61693, 
+    85990, 117506, 157384, 207736, 269997, 346462, 439268, 551295, 685171, 843709, 
+    1030734, 1249629, 1504995, 1800847, 2142652, 2535122, 2984677, 3496798, 4080655, 4742836, 
+    5490247, 6334393, 7283446, 8348398, 9541110, 10874351, 12361842, 14018289, 15859432, 17905634, 
+    20171471, 22679999, 25456123, 28517857, 31897771, 35621447, 39721017, 44225461, 49176560, 54607467, 
+    60565335, 67094245, 74247659, 82075627, 90631041, 99984974, 110197515, 121340161, 133497202, 146749362, 
+    161191120, 176922628, 194049893, 212684946, 232956711, 255001620, 278952403, 304972236, 333233648, 363906163, 
+    397194041, 433312945, 472476370, 514937180, 560961898, 610815862, 664824416, 723298169, 786612664, 855129128, 
+    929261318, 1009443795, 1096169525, 1189918242, 1291270350, 1400795257, 1519130326, 1646943474, 1784977296, 1934009687, 
+    2094900291, 2268549086, 2455921256, 2658074992, 2876116901, 3111280300, 3364828162, 3638186694, 3932818530, 4250334444
 ]
 
 class RaceModeWindow(customtkinter.CTkToplevel):
@@ -99,7 +89,9 @@ class RaceModeWindow(customtkinter.CTkToplevel):
         self.global_frame.grid_columnconfigure(3, weight=0)
 
         # Global Ladder
-        self.global_header = self.create_header_label(self.global_frame, "Global Ladder", 0)
+        self.global_header_label = customtkinter.CTkLabel(self.global_frame, text="Global Ladder", font=customtkinter.CTkFont(weight="bold", underline=True))
+        self.global_header_label.grid(row=0, column=0, columnspan=4, pady=(10, 2), sticky="w", padx=5)
+
         self.global_ahead_labels = self.create_info_row(self.global_frame, "Ahead:", 1, fg_color=AHEAD_COLOR)
         self.global_track_labels = self.create_info_row(self.global_frame, "You:", 2, fg_color=TRACK_COLOR)
         self.global_behind_labels = self.create_info_row(self.global_frame, "Behind:", 3, fg_color=BEHIND_COLOR)
@@ -141,17 +133,14 @@ class RaceModeWindow(customtkinter.CTkToplevel):
         if choice == "Ladders":
             self.asc_frame.grid(row=1, column=0, sticky="ew", pady=(0, 5))
             self.global_frame.grid(row=2, column=0, sticky="ew", pady=5)
+            self.global_header_label.grid()
         elif choice == "Ascendancy":
             self.asc_frame.grid(row=1, column=0, sticky="ew", pady=(0, 5))
             self.global_frame.grid_forget()
         elif choice == "Global":
             self.asc_frame.grid_forget()
             self.global_frame.grid(row=1, column=0, sticky="ew", pady=(0, 5))
-
-    def create_header_label(self, parent, text, row):
-        label = customtkinter.CTkLabel(parent, text=text, font=customtkinter.CTkFont(weight="bold", underline=True))
-        label.grid(row=row, column=0, columnspan=4, pady=(10, 2), sticky="w", padx=5)
-        return label
+            self.global_header_label.grid_remove()
 
     def create_info_row(self, parent, title, row, fg_color=None):
         # Create a frame to hold the row content and provide the background color
@@ -463,9 +452,9 @@ class App(customtkinter.CTk):
         self.all_leagues_data = [] # To store full league objects for ID lookup
         self.found_character_for_race_mode = None
         self.race_mode_window = None
-
-        # --- Font ---
-        self.textbox_font = customtkinter.CTkFont(family="Consolas", size=12)
+        self.ascendancy_frames = {}
+        self.displayed_character_names = set()
+        self.results_initialized = False
 
         # --- Options Frame ---
         self.options_frame = customtkinter.CTkFrame(self)
@@ -517,14 +506,9 @@ class App(customtkinter.CTk):
         self.race_mode_button = customtkinter.CTkButton(self.search_frame, text="Race Mode", command=self.launch_race_mode_thread, state="disabled")
         self.race_mode_button.grid(row=1, column=3, padx=(0,10), pady=(0,10))
         
-        # --- Results Textbox ---
-        self.textbox = customtkinter.CTkTextbox(self, width=600, font=self.textbox_font)
-        self.textbox.grid(row=2, column=0, padx=20, pady=(0, 10), sticky="nsew")
-        
-        # --- Configure Tab Stops for Perfect Column Alignment ---
-        # We will set the tabs dynamically once the widget is drawn.
-        # This ensures the right-aligned column is always correct.
-        self.after(100, self.configure_tabs)
+        # --- Results Frame (replaces Textbox) ---
+        self.results_frame = customtkinter.CTkScrollableFrame(self)
+        self.results_frame.grid(row=2, column=0, padx=20, pady=(0, 10), sticky="nsew")
 
         # --- Show More Button ---
         self.show_more_button = customtkinter.CTkButton(self, text="Show More", command=self.start_show_more_thread, state="disabled")
@@ -539,17 +523,6 @@ class App(customtkinter.CTk):
         self.disclaimer_label.grid(row=5, column=0, padx=20, pady=(0, 10), sticky="s")
 
         self.load_leagues()
-
-    def configure_tabs(self):
-        """
-        Dynamically configures tab stops for the results textbox.
-        This ensures the right-most column is always perfectly aligned.
-        """
-        # Get the actual width of the textbox after it has been rendered.
-        widget_width = self.textbox.winfo_width()
-        # Define tab stops: Asc(0), Lvl(140), Name(200), Rank(far right, right-aligned)
-        tab_stops = (180, 300, widget_width - 35, "right")
-        self.textbox.configure(tabs=tab_stops)
 
     def get_selected_league(self):
         try:
@@ -648,141 +621,205 @@ class App(customtkinter.CTk):
         self.current_limit = 10
         self.all_fetched_entries = []
         self.current_offset = 0
-        self.fetch_and_display_data_thread()
+        self.fetch_and_display_data_thread(clear_results=True)
 
     def start_show_more_thread(self):
         self.current_limit += 50
-        self.fetch_and_display_data_thread()
+        self.fetch_and_display_data_thread(clear_results=False)
 
-    def fetch_and_display_data_thread(self):
+    def fetch_and_display_data_thread(self, clear_results=True):
         self.fetch_button.configure(state="disabled")
         self.search_button.configure(state="disabled")
-        self.stop_search_button.configure(state="disabled")
+        self.stop_search_button.configure(state="normal")
         self.race_mode_button.configure(state="disabled")
         self.show_more_button.configure(state="disabled")
-        self.status_label.configure(text="Fetching data...")
-        self.textbox.delete("1.0", "end")
+        self.status_label.configure(text="Fetching data...")        
         
+        if clear_results:
+            self._clear_results_frame()
+        
+        self.stop_search_event.clear()
         thread = threading.Thread(target=self.fetch_and_display_data, daemon=True)
         thread.start()
 
+    def _clear_results_frame(self):
+        for widget in self.results_frame.winfo_children():
+            widget.destroy()
+        self.ascendancy_frames = {}
+        self.displayed_character_names = set()
+        self.results_initialized = False
+
+    def display_message(self, message, title=""):
+        self._clear_results_frame()
+        
+        if title:
+            title_label = customtkinter.CTkLabel(self.results_frame, text=title, font=customtkinter.CTkFont(size=16, weight="bold"))
+            title_label.pack(pady=(10,5), padx=10, anchor="w")
+
+        message_label = customtkinter.CTkLabel(self.results_frame, text=message, wraplength=600, justify="left", anchor="w")
+        message_label.pack(pady=5, padx=10, anchor="w", fill="x")
+
+    def display_results(self, final_results, league):
+        # Define colors and fonts
+        HOVER_COLOR = ("gray92", "gray20")
+        ASC_SEPARATOR_COLOR = "#4da6ff"
+        ROW_SEPARATOR_COLOR = ("gray65", "gray40")
+        HEADER_SEPARATOR_COLOR = ("gray85", "gray60")
+        
+        asc_col_width = 140
+        lvl_col_width = 60
+        rank_col_width = 120
+        progress_col_width = 100
+
+        if not self.results_initialized:
+            # --- Table Header ---
+            table_header_frame = customtkinter.CTkFrame(self.results_frame, fg_color="transparent", height=30)
+            table_header_frame.pack(fill="x", padx=5, pady=(0, 5))
+            
+            # Pack Right-aligned columns first
+            customtkinter.CTkLabel(table_header_frame, text="RANK (Asc/Global)", width=rank_col_width, anchor="e", font=customtkinter.CTkFont(weight="bold"), text_color=ASC_SEPARATOR_COLOR).pack(side="right", padx=10)
+            customtkinter.CTkLabel(table_header_frame, text="PROGRESS", width=progress_col_width, anchor="center", font=customtkinter.CTkFont(weight="bold"), text_color=ASC_SEPARATOR_COLOR).pack(side="right", padx=10)
+
+            # Pack Left-aligned columns
+            customtkinter.CTkLabel(table_header_frame, text="ASCENDANCY", width=asc_col_width, anchor="w", font=customtkinter.CTkFont(weight="bold"), text_color=ASC_SEPARATOR_COLOR).pack(side="left", padx=10)
+            customtkinter.CTkLabel(table_header_frame, text="LEVEL", width=lvl_col_width, anchor="center", font=customtkinter.CTkFont(weight="bold"), text_color=ASC_SEPARATOR_COLOR).pack(side="left", padx=10)
+            customtkinter.CTkLabel(table_header_frame, text="CHARACTER NAME", anchor="w", font=customtkinter.CTkFont(weight="bold"), text_color=ASC_SEPARATOR_COLOR).pack(side="left", padx=10, expand=True, fill="x")
+
+            # --- Header Separator ---
+            customtkinter.CTkFrame(self.results_frame, height=3, fg_color=HEADER_SEPARATOR_COLOR, corner_radius=0).pack(fill="x", padx=5)
+            self.results_initialized = True
+
+        for char in final_results:
+            if char['name'] in self.displayed_character_names:
+                continue
+            
+            asc = char['ascendancy']
+            
+            # Ensure we have a frame for this ascendancy
+            if asc not in self.ascendancy_frames:
+                # If this is not the first ascendancy frame, add a separator before it
+                if self.ascendancy_frames:
+                    customtkinter.CTkFrame(self.results_frame, height=2, fg_color=ASC_SEPARATOR_COLOR).pack(fill="x", padx=5, pady=5)
+                
+                frame = customtkinter.CTkFrame(self.results_frame, fg_color="transparent", corner_radius=0)
+                frame.pack(fill="x")
+                self.ascendancy_frames[asc] = frame
+            
+            asc_frame = self.ascendancy_frames[asc]
+            
+            # If frame already has children (rows), add a row separator
+            if len(asc_frame.winfo_children()) > 0:
+                customtkinter.CTkFrame(asc_frame, height=2, fg_color=ROW_SEPARATOR_COLOR, corner_radius=0).pack(fill="x", padx=5)
+
+            row_frame = customtkinter.CTkFrame(asc_frame, fg_color="transparent", corner_radius=6)
+            row_frame.pack(fill="x", padx=5, pady=1)
+
+            # Labels inside the row - Pack Right-aligned first
+            rank_str = f"{char['asc_rank']} / {char['global_rank']}"
+            rank_label = customtkinter.CTkLabel(row_frame, text=rank_str, width=rank_col_width, anchor="e")
+            rank_label.pack(side="right", padx=10, pady=4)
+
+            # Progress Bar
+            progress_bar = customtkinter.CTkProgressBar(row_frame, width=progress_col_width, height=8, progress_color="#2CC985")
+            progress_bar.pack(side="right", padx=10, pady=4)
+            
+            lvl = char['level']
+            xp = char['xp']
+            if lvl >= 100:
+                prog = 1.0
+            else:
+                prev_xp = XP_THRESHOLDS[lvl-1]
+                next_xp = XP_THRESHOLDS[lvl]
+                prog = (xp - prev_xp) / (next_xp - prev_xp)
+            progress_bar.set(prog)
+
+            # Pack Left-aligned
+            asc_label = customtkinter.CTkLabel(row_frame, text=char['ascendancy'], width=asc_col_width, anchor="w")
+            asc_label.pack(side="left", padx=10, pady=4)
+
+            lvl_label = customtkinter.CTkLabel(row_frame, text=char['level'], width=lvl_col_width, anchor="center")
+            lvl_label.pack(side="left", padx=10, pady=4)
+
+            name_label = customtkinter.CTkLabel(row_frame, text=char['name'], anchor="w")
+            name_label.pack(side="left", padx=10, pady=4, expand=True, fill="x")
+
+            # Hover effect
+            def on_enter(e, wf=row_frame): wf.configure(fg_color=HOVER_COLOR)
+            def on_leave(e, wf=row_frame): wf.configure(fg_color="transparent")
+
+            for widget in [row_frame, asc_label, lvl_label, name_label, rank_label, progress_bar]:
+                widget.bind("<Enter>", on_enter)
+                widget.bind("<Leave>", on_leave)
+            
+            self.displayed_character_names.add(char['name'])
+
     def _should_stop_fetching(self, ascendancy):
         """Helper to determine if the data fetching loop should stop."""
-        # Stop if we hit the GGG API limit for a single search
-        if self.current_offset >= 15000:
-            return True
-
-        # Stop condition for a single ascendancy when enough have been found
+        if self.current_offset >= 15000: return True
         if ascendancy:
             count = sum(1 for entry in self.all_fetched_entries if entry['character']['class'] == ascendancy)
             return count >= self.current_limit
         
-        # Stop condition for "All" ascendancies when all have enough entries
         ascendancy_counts = {asc: 0 for asc in ALL_ASCENDANCY_NAMES}
         for entry in self.all_fetched_entries:
             char_class = entry['character']['class']
-            if char_class in ascendancy_counts:
-                ascendancy_counts[char_class] += 1
+            if char_class in ascendancy_counts: ascendancy_counts[char_class] += 1
         
-        # Only wait for the ascendancies relevant to the current league type
         selected_league = self.get_selected_league() or ""
-        if "Phrecia" in selected_league:
-            return all(ascendancy_counts[asc] >= self.current_limit for asc in TEMPORARY_ASCENDANCIES)
-        else:
-            return all(ascendancy_counts[asc] >= self.current_limit for asc in STANDARD_ASCENDANCIES)
-
-    def update_textbox(self, output):
-        self.textbox.delete("1.0", "end")
-        self.textbox.insert("1.0", output)
-
-    def update_textbox_and_scroll(self, output):
-        """Updates the textbox and scrolls to the end."""
-        self.update_textbox(output)
-        self.textbox.see("end")
+        relevant_asc = TEMPORARY_ASCENDANCIES if "Phrecia" in selected_league else STANDARD_ASCENDANCIES
+        return all(ascendancy_counts[asc] >= self.current_limit for asc in relevant_asc)
 
     def fetch_and_display_data(self):
         selected_league_input = self.get_selected_league()
         deep_search = self.deep_search_check.get() == 1
-
-        # Always resolve the league name to its proper ID for the API.
         league_id = self._get_league_id_from_name(selected_league_input)
 
         if not league_id:
             self.status_label.configure(text=f"Error: League '{selected_league_input}' not found.")
+            self.after(0, self.reset_button_states)
             return
 
         ascendancy = self.ascendancy_menu.get()
-        if ascendancy == "All":
-            ascendancy = None
+        if ascendancy == "All": ascendancy = None
 
-        while True:
-            if self._should_stop_fetching(ascendancy): break
+        api_error = False
+        while not self._should_stop_fetching(ascendancy) and not self.stop_search_event.is_set():
             self.status_label.configure(text=f"Fetching characters {self.current_offset} to {self.current_offset + CHUNK_SIZE}...")
             data = GGGAPIClient.fetch_ladder(league_id, limit=CHUNK_SIZE, offset=self.current_offset, deep_search=deep_search)
             
-            if data is None:
-                self.status_label.configure(text="Error: Failed to fetch ladder data from API.")
+            if data and isinstance(data, dict) and data.get('error'):
+                self.after(0, self.display_message, f"Error: {data.get('message', 'Unknown API error')}", "API Error")
+                api_error = True
+                break
+
+            if data is None or not data.get('entries', []):
+                self.status_label.configure(text="No more data from API.")
                 break
             
-            entries = data.get('entries', [])
-            if not entries: break # No more entries to fetch
-            
-            self.all_fetched_entries.extend(entries)
+            self.all_fetched_entries.extend(data['entries'])
             self.current_offset += CHUNK_SIZE
 
-            # Live update for "All" ascendancies
             if not ascendancy:
-                final_results = process_ladder_data(self.all_fetched_entries, selected_ascendancy=ascendancy, limit=self.current_limit)
-                output = self.format_results(final_results, selected_league_input)
-                self.after(0, self.update_textbox, output)
-
-            # Add a small delay to respect API rate limits
+                final_results = process_ladder_data(self.all_fetched_entries, limit=self.current_limit)
+                self.after(0, self.display_results, final_results, selected_league_input)
             time.sleep(0.5)
         
-        # Final update for single ascendancy
-        if ascendancy:
+        if self.stop_search_event.is_set():
+            self.after(0, self.status_label.configure, {"text": "Fetch stopped."})
+            # If nothing was displayed, show a message. Otherwise, the partial results are fine.
+            if not self.results_frame.winfo_children():
+                self.after(0, self.display_message, "The fetch operation was cancelled by the user.", "Fetch Stopped")
+        elif not api_error:
             final_results = process_ladder_data(self.all_fetched_entries, selected_ascendancy=ascendancy, limit=self.current_limit)
-            output = self.format_results(final_results, selected_league_input)
-            # If the limit is greater than the initial fetch, it means "Show More" was used.
-            if self.current_limit > 10:
-                self.after(0, self.update_textbox_and_scroll, output)
-            else:
-                self.after(0, self.update_textbox, output)
+            self.after(0, self.display_results, final_results, selected_league_input)
+            self.status_label.configure(text=f"Done. Showing top {self.current_limit} for {ascendancy if ascendancy else 'all ascendancies'}.")
 
-        self.status_label.configure(text=f"Done. Showing top {self.current_limit} for {ascendancy if ascendancy else 'all ascendancies'}.")
         self.after(0, self.reset_button_states)
-
-    def format_results(self, final_results, league):
-        width = 90
-        header = f"✅ ASCENDANCY STANDINGS ✅".center(width)
-        league_line = f"League: {league}".center(width)
-        separator = "-" * width
-
-        output = [f"{separator}\n", f"{header}\n", f"{league_line}\n", f"{separator}\n"]
-
-        # Use tabs (\t) to align columns instead of manual padding
-        table_header = f"ASCENDANCY\tLEVEL\tCHARACTER NAME\tRANK (Asc/Global)"
-        output.append(f"{table_header}\n")
-        output.append(f"{separator}\n")
-
-        last_ascendancy = None
-        for char in final_results:
-            if last_ascendancy and char['ascendancy'] != last_ascendancy:
-                output.append(f"{separator}\n")
-            
-            rank_str = f"{char['asc_rank']} / {char['global_rank']}"
-            line = f"{char['ascendancy']}\t{char['level']}\t{char['name']}\t{rank_str}"
-            output.append(f"{line}\n")
-            last_ascendancy = char['ascendancy']
-
-        output.append(f"{separator}\n")
-        return "".join(output)
 
     def start_search_thread(self, event=None):
         char_name = self.char_name_entry.get()
         if not char_name:
-            self.textbox.delete("1.0", "end")
-            self.textbox.insert("1.0", "Please enter a character name to search.")
+            self.display_message("Please enter a character name to search.")
             return
 
         self.fetch_button.configure(state="disabled")
@@ -790,7 +827,7 @@ class App(customtkinter.CTk):
         self.stop_search_button.configure(state="normal")
         self.race_mode_button.configure(state="disabled")
         self.status_label.configure(text=f"Searching for {char_name}...")
-        self.textbox.delete("1.0", "end")
+        self._clear_results_frame()
 
         self.stop_search_event.clear()
         thread = threading.Thread(target=self.search_character, daemon=True)
@@ -829,32 +866,26 @@ class App(customtkinter.CTk):
         found_entry = None
         ascendancy_counts = {asc: 0 for asc in ALL_ASCENDANCY_NAMES}
 
-        while True:
-            if self.stop_search_event.is_set():
-                break
-
+        while not self.stop_search_event.is_set():
             self.after(0, self.status_label.configure, {"text": f"Searching... Scanned {current_offset} characters so far."})
             data = GGGAPIClient.fetch_ladder(league_id, limit=CHUNK_SIZE, offset=current_offset, deep_search=deep_search)
 
             if data and isinstance(data, dict) and data.get('error'):
-                self.after(0, self.update_textbox, f"Error: {data.get('message', 'Unknown API error')}")
+                self.after(0, self.display_message, f"Error: {data.get('message', 'Unknown API error')}", "API Error")
                 break
 
             entries = data.get('entries', [])
-            if not entries:
-                break
+            if not entries: break
             
-            self.all_fetched_entries.extend(entries) # Store for Race Mode fallback
-            self.current_offset = current_offset + CHUNK_SIZE # Sync state so "Show More" works correctly
+            self.all_fetched_entries.extend(entries)
+            self.current_offset = current_offset + CHUNK_SIZE
 
             for i, entry in enumerate(data['entries']):
-                if self.stop_search_event.is_set():
-                    break
+                if self.stop_search_event.is_set(): break
                 char_data = entry['character']
                 ascendancy = char_data['class']
                 
-                if ascendancy in ascendancy_counts:
-                    ascendancy_counts[ascendancy] += 1
+                if ascendancy in ascendancy_counts: ascendancy_counts[ascendancy] += 1
 
                 entry['ascendancy_rank'] = ascendancy_counts.get(ascendancy)
                 entry['rank'] = current_offset + i + 1
@@ -862,41 +893,35 @@ class App(customtkinter.CTk):
                 if entry['character']['name'].lower() == char_name_to_find.lower():
                     found_entry = entry
             
-            if found_entry:
-                break
+            if found_entry: break
 
             current_offset += CHUNK_SIZE
-            if current_offset >= 15000 and not deep_search:
-                break
-            
-            time.sleep(0.1) # Reduced sleep for faster searching
+            if current_offset >= 15000 and not deep_search: break
+            time.sleep(0.1)
 
         if self.stop_search_event.is_set():
             self.after(0, self.status_label.configure, {"text": "Search stopped."})
-            self.after(0, self.update_textbox, "Search was cancelled.")
+            self.after(0, self.display_message, "The search was cancelled by the user.", "Search Stopped")
         elif found_entry:
             self.found_character_for_race_mode = found_entry
             char_data = found_entry['character']
-            result = f"Character Found:\n"
-            result += f"  Name: {char_data['name']}\n"
-            result += f"  Level: {char_data['level']}\n"
-            result += f"  Class: {char_data['class']}\n\n"
-            result += f"  ---\n"
-            result += f"  Global Rank: {found_entry['rank']}\n"
-            result += f"  Ascendancy Rank: {found_entry['ascendancy_rank']}"
-            self.after(0, self.update_textbox, result)
+            result = (f"Name: {char_data['name']}\n"
+                      f"Level: {char_data['level']}\n"
+                      f"Class: {char_data['class']}\n\n"
+                      f"Global Rank: {found_entry['rank']}\n"
+                      f"Ascendancy Rank: {found_entry['ascendancy_rank']}")
+            self.after(0, self.display_message, result, "Character Found")
             self.after(0, self.status_label.configure, {"text": f"Search complete. Found {char_name_to_find}."})
             self.after(0, self.race_mode_button.configure, {"state": "normal"})
         else:
             message = f"Character '{char_name_to_find}' not found after scanning {current_offset} entries."
-            self.after(0, self.update_textbox, message)
+            self.after(0, self.display_message, message, "Search Complete")
             self.after(0, self.status_label.configure, {"text": "Search complete. Character not found."})
 
         self.after(0, self.reset_button_states)
 
     def reset_button_states(self):
         """Helper function to re-enable buttons after an operation."""
-        # Schedule the final UI state updates on the main thread
         self.fetch_button.configure(state="normal")
         self.search_button.configure(state="normal")
         self.stop_search_button.configure(state="disabled")
