@@ -4,37 +4,76 @@
     <meta charset="UTF-8">
     <title>Race Mode</title>
     <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body { margin: 0; background-color: #242424; color: #eeeeee; font-family: 'Segoe UI', sans-serif; height: 100vh; overflow: hidden; }
+        .container { display: flex; flex-direction: column; height: 100%; max-width: none; padding: 0; }
+        #raceModeContainer { display: flex; flex-direction: column; height: 100%; }
+        .header-frame { display: flex; justify-content: space-between; padding: 5px 10px; background-color: #2b2b2b; flex-shrink: 0; }
+        .main-frame { flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; }
+        .footer-frame { display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; background-color: transparent; flex-shrink: 0; }
+        .refresh-btn-container { padding: 5px 10px 10px 10px; flex-shrink: 0; }
+        .ladder-section { margin-bottom: 5px; }
+        h3 { font-size: 14px; margin: 0 0 5px 0; font-weight: bold; text-decoration: underline; color: #eeeeee; }
+        .hidden { display: none !important; }
+        button { background-color: #1f6aa5; color: white; border: none; padding: 8px; cursor: pointer; font-family: 'Segoe UI', sans-serif; font-weight: bold; border-radius: 4px; }
+        button:hover { background-color: #144870; }
+        button:disabled { background-color: #3a3a3a; color: #888; cursor: default; }
+        .checkbox-label { cursor: pointer; user-select: none; font-size: 13px; display: flex; align-items: center; }
+        .checkbox-label input { display: none; }
+        .checkbox-custom {
+            width: 16px; height: 16px; background-color: #3a3a3a; border: 1px solid #555; border-radius: 4px;
+            margin-right: 8px; position: relative; display: inline-block;
+        }
+        .checkbox-label input:checked + .checkbox-custom {
+            background-color: #1f6aa5; border-color: #1f6aa5;
+        }
+        .checkbox-label input:checked + .checkbox-custom::after {
+            content: ''; position: absolute; left: 5px; top: 2px; width: 4px; height: 8px;
+            border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg);
+        }
+        /* Margin logic for Global section */
+        #ascSection:not(.hidden) + #globalSection { margin-top: 10px; }
+    </style>
 </head>
-<body style="padding: 0;">
-    <div class="container" style="max-width: 100%; height: 100vh;">
-        <div id="raceModeContainer" style="margin: 0; border: none; border-radius: 0; height: 100%; display: flex; flex-direction: column;">
-            <div class="race-header-row">
-                <label class="checkbox-label"><input type="checkbox" id="autoRefreshCheck" checked onchange="toggleAutoRefresh()"> Auto Refresh (60s)</label>
-                <select id="viewModeSelect" onchange="toggleRaceView()" style="margin-left: 10px; width: auto;">
-                    <option value="both">View: Both</option>
-                    <option value="ascendancy">View: Ascendancy</option>
-                    <option value="global">View: Global</option>
+<body>
+    <div class="container">
+        <div id="raceModeContainer">
+            <!-- Header Row -->
+            <div class="header-frame">
+                <div id="trackingHeader" style="font-weight: bold;">Tracking: --</div>
+                <div id="classHeader" style="font-weight: bold; font-size: 14px;">--</div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="main-frame">
+                <div id="ascSection" class="ladder-section">
+                    <div class="ladder-table" id="ascTable"></div>
+                </div>
+                <div id="globalSection" class="ladder-section">
+                    <h3 id="globalHeader">Global Ladder</h3>
+                    <div class="ladder-table" id="globalTable"></div>
+                </div>
+            </div>
+
+            <!-- Footer Controls -->
+            <div class="footer-frame">
+                <div style="display: flex; gap: 15px;">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="autoRefreshCheck" checked onchange="toggleAutoRefresh()">
+                        <span class="checkbox-custom"></span>Auto Refresh
+                    </label>
+                </div>
+                <select id="viewModeSelect" onchange="toggleRaceView()">
+                    <option value="both">Ladders</option>
+                    <option value="ascendancy">Ascendancy</option>
+                    <option value="global">Global</option>
                 </select>
-                <h2 id="trackingHeader" style="margin-left: auto;">Tracking: --</h2>
-            </div>
-
-            <!-- Ascendancy Ladder (On Top) -->
-            <div class="ladder-section" id="ascSection">
-                <h3 id="ascHeader">Ascendancy Ladder</h3>
-                <div class="ladder-table" id="ascTable">
-                    <!-- Rows injected by JS -->
-                </div>
-            </div>
-
-            <!-- Global Ladder -->
-            <div class="ladder-section" id="globalSection">
-                <h3 id="globalHeader">Global Ladder</h3>
-                <div class="ladder-table" id="globalTable">
-                    <!-- Rows injected by JS -->
-                </div>
             </div>
             
-            <button id="refreshRaceBtn" style="margin-top: auto; flex: 0 0 auto; width: 150px; align-self: center;" onclick="updateRaceData()">Refresh</button>
+            <!-- Refresh Button -->
+            <div class="refresh-btn-container">
+                <button id="refreshRaceBtn" style="width: 100%;" onclick="updateRaceData()">Refresh</button>
+            </div>
         </div>
     </div>
     <script src="/static/popout.js"></script>

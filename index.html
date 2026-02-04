@@ -11,39 +11,48 @@
         <h1>PoE Ladder Tracker</h1>
         
         <div class="controls-frame">
-            <div class="control-group">
-                <label for="leagueSelect">League</label>
-                <select id="leagueSelect"><option>Fetching leagues...</option></select>
+            <div class="control-row">
+                <div class="control-group">
+                    <label for="leagueSelect">Ladder</label>
+                    <select id="leagueSelect"><option>Fetching leagues...</option></select>
+                </div>
+                <div class="control-group">
+                    <label for="ascendancySelect">Ascendancy</label>
+                    <select id="ascendancySelect">
+                        <option value="All">All</option>
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
             </div>
-            <div class="control-group">
-                <label for="ascendancySelect">Ascendancy</label>
-                <select id="ascendancySelect">
-                    <option value="All">All</option>
-                    <!-- Populated by JS -->
-                </select>
-            </div>
-            <div class="control-group">
-                <label class="checkbox-label"><input type="checkbox" id="privateLeagueCheck" onchange="togglePrivateLeague()"> Use Private League</label>
-                <input type="text" id="privateLeagueInput" placeholder="Name of Private League (PLxxxxx)" disabled style="margin-top: 5px;">
-            </div>
-            <div class="control-group">
-                <label for="charNameInput">Character Name</label>
-                <input type="text" id="charNameInput" placeholder="Enter character name">
+            <div class="control-row private-league-row">
+                <div class="control-group checkbox-container">
+                     <label class="checkbox-label"><input type="checkbox" id="privateLeagueCheck" onchange="togglePrivateLeague()"> Use Private League</label>
+                </div>
+                <div class="control-group">
+                    <input type="text" id="privateLeagueInput" placeholder="Name of Private League (PLxxxxx)" disabled>
+                </div>
             </div>
             <div class="button-group">
                 <button id="fetchBtn" onclick="fetchCharacters()">Fetch Characters</button>
-                <button id="showMoreBtn" onclick="showMoreCharacters()" disabled>Show More</button>
-            </div>
-            <div class="button-group">
-                <button id="searchBtn" onclick="searchCharacter()">Search Character</button>
-                <button id="stopBtn" onclick="stopSearch()" disabled>Stop</button>
-                <button id="raceBtn" onclick="startRaceMode()" disabled>Race Mode</button>
             </div>
             <div id="status" class="status-bar">Ready.</div>
         </div>
 
+        <div class="search-frame">
+            <label for="charNameInput">Character Name</label>
+            <div class="search-input-row">
+                <input type="text" id="charNameInput" placeholder="Enter character name">
+                <button id="searchBtn" onclick="searchCharacter()">Search Character</button>
+                <button id="stopBtn" onclick="stopSearch()" disabled>Stop</button>
+                <button id="raceBtn" onclick="startRaceMode()" disabled>Race Mode</button>
+            </div>
+        </div>
+
         <!-- Search Results Textbox -->
         <div id="resultsBox"></div>
+
+        <!-- Show More Button -->
+        <button id="showMoreBtn" onclick="showMoreCharacters()" disabled>Show More</button>
 
         <!-- Race Mode Section (Hidden by default) -->
         <div id="raceModeContainer" class="hidden">

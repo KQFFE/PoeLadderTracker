@@ -3,6 +3,30 @@ let leagueId = null;
 let allFetchedEntries = [];
 let raceInterval = null;
 
+const CHUNK_SIZE = 200;
+const XP_THRESHOLDS = [
+    0, 525, 1760, 3781, 7184, 12186, 19324, 29377, 43181, 61693, 
+    85990, 117506, 157384, 207736, 269997, 346462, 439268, 551295, 685171, 843709, 
+    1030734, 1249629, 1504995, 1800847, 2142652, 2535122, 2984677, 3496798, 4080655, 4742836, 
+    5490247, 6334393, 7283446, 8348398, 9541110, 10874351, 12361842, 14018289, 15859432, 17905634, 
+    20171471, 22679999, 25456123, 28517857, 31897771, 35621447, 39721017, 44225461, 49176560, 54607467, 
+    60565335, 67094245, 74247659, 82075627, 90631041, 99984974, 110197515, 121340161, 133497202, 146749362, 
+    161191120, 176922628, 194049893, 212684946, 232956711, 255001620, 278952403, 304972236, 333233648, 363906163, 
+    397194041, 433312945, 472476370, 514937180, 560961898, 610815862, 664824416, 723298169, 786612664, 855129128, 
+    929261318, 1009443795, 1096169525, 1189918242, 1291270350, 1400795257, 1519130326, 1646943474, 1784977296, 1934009687, 
+    2094900291, 2268549086, 2455921256, 2658074992, 2876116901, 3111280300, 3364828162, 3638186694, 3932818530, 4250334444
+];
+
+function calculateProgress(level, xp) {
+    if (level >= 100) return 100;
+    if (level < 1) return 0;
+    const prevXp = XP_THRESHOLDS[level - 1];
+    const nextXp = XP_THRESHOLDS[level];
+    if (nextXp === undefined) return 100;
+    const progress = (xp - prevXp) / (nextXp - prevXp);
+    return Math.max(0, Math.min(100, progress * 100));
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     // Retrieve data from main window's localStorage
     foundCharacterEntry = JSON.parse(localStorage.getItem('raceModeCharacter'));
@@ -11,8 +35,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (foundCharacterEntry && leagueId) {
         document.title = `Race: ${foundCharacterEntry.character.name}`;
-        document.getElementById('trackingHeader').textContent = `Tracking: ${foundCharacterEntry.character.name}`;
-        document.getElementById('ascHeader').textContent = `${foundCharacterEntry.character.class} Ladder`;
+        document.getElementById('classHeader').textContent = foundCharacterEntry.character.class;
+        updateHeaderInfo();
         
         updateRaceData();
         toggleAutoRefresh();
@@ -21,29 +45,51 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+function updateHeaderInfo() {
+    if (!foundCharacterEntry) return;
+    const name = foundCharacterEntry.character.name;
+    // Try to find rank in cached entries if available, otherwise use what we have
+    let rank = foundCharacterEntry.asc_rank || '?';
+    if (rank === '?' && allFetchedEntries.length > 0) {
+        const myClass = foundCharacterEntry.character.class;
+        const ascEntries = allFetchedEntries.filter(e => e.character.class === myClass);
+        const idx = ascEntries.findIndex(e => e.character.name === name);
+        if (idx !== -1) rank = idx + 1;
+    }
+    document.getElementById('trackingHeader').textContent = `Tracking: ${name} | Asc: #${rank}`;
+}
+
 function toggleRaceView() {
     const mode = document.getElementById('viewModeSelect').value;
     const ascSection = document.getElementById('ascSection');
     const globalSection = document.getElementById('globalSection');
+    const globalHeader = document.getElementById('globalHeader');
 
     if (mode === 'both') {
         ascSection.classList.remove('hidden');
         globalSection.classList.remove('hidden');
+        globalHeader.classList.remove('hidden');
     } else if (mode === 'ascendancy') {
         ascSection.classList.remove('hidden');
         globalSection.classList.add('hidden');
     } else if (mode === 'global') {
         ascSection.classList.add('hidden');
         globalSection.classList.remove('hidden');
+        globalHeader.classList.add('hidden');
     }
 }
 
 function toggleAutoRefresh() {
     const isChecked = document.getElementById('autoRefreshCheck').checked;
+    const btn = document.getElementById('refreshRaceBtn');
+    
     if (raceInterval) clearInterval(raceInterval);
     
     if (isChecked) {
         raceInterval = setInterval(updateRaceData, 60000); // 60s
+        if (btn) btn.style.display = 'none';
+    } else {
+        if (btn) btn.style.display = 'block';
     }
 }
 
@@ -51,29 +97,84 @@ async function updateRaceData() {
     if (!foundCharacterEntry || !leagueId) return;
 
     const btn = document.getElementById('refreshRaceBtn');
-    btn.disabled = true;
-    btn.textContent = "Refreshing...";
-
-    const targetRank = foundCharacterEntry.rank;
-    
-    const limit = 200;
-    const offset = Math.max(0, targetRank - (limit / 2));
-
-    try {
-        const response = await fetch(`/public-ladder/${encodeURIComponent(leagueId)}?limit=${limit}&offset=${offset}`);
-        const data = await response.json();
-
-        if (data.entries) {
-            processRaceData(data.entries);
-        } else {
-            console.error("Failed to refresh race data");
-        }
-    } catch (e) {
-        console.error(e);
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Refreshing...";
     }
 
-    btn.disabled = false;
-    btn.textContent = "Refresh";
+    const charName = foundCharacterEntry.character.name.toLowerCase();
+    let currentOffset = 0;
+    let found = false;
+    let ascCounts = {};
+    let surroundingEntries = [];
+    let prevChunk = [];
+
+    // Scan from 0 to get accurate Ascendancy Ranks
+    while (currentOffset < 15000) {
+        try {
+            const response = await fetch(`/public-ladder/${encodeURIComponent(leagueId)}?limit=${CHUNK_SIZE}&offset=${currentOffset}`);
+            const data = await response.json();
+            
+            if (!data.entries || data.entries.length === 0) break;
+            
+            const entries = data.entries;
+            
+            for (let i = 0; i < entries.length; i++) {
+                const entry = entries[i];
+                const asc = entry.character.class;
+                if (!ascCounts[asc]) ascCounts[asc] = 0;
+                ascCounts[asc]++;
+                
+                // Stamp ranks
+                entry.ascendancy_rank = ascCounts[asc];
+                entry.rank = currentOffset + i + 1;
+                
+                if (entry.character.name.toLowerCase() === charName) {
+                    found = true;
+                    // Build context: prev chunk (last 10) + current chunk
+                    surroundingEntries = [...(prevChunk.slice(-10)), ...entries];
+                    
+                    // If near end of chunk, fetch one more small chunk for "Behind" neighbor
+                    if (i >= entries.length - 2) {
+                         const nextRes = await fetch(`/public-ladder/${encodeURIComponent(leagueId)}?limit=10&offset=${currentOffset + CHUNK_SIZE}`);
+                         const nextData = await nextRes.json();
+                         if (nextData.entries) {
+                             nextData.entries.forEach((ne, ni) => {
+                                 const nasc = ne.character.class;
+                                 if (!ascCounts[nasc]) ascCounts[nasc] = 0;
+                                 ascCounts[nasc]++;
+                                 ne.ascendancy_rank = ascCounts[nasc];
+                                 ne.rank = currentOffset + CHUNK_SIZE + ni + 1;
+                             });
+                             surroundingEntries.push(...nextData.entries);
+                         }
+                    }
+                    break;
+                }
+            }
+            
+            if (found) break;
+            
+            prevChunk = entries;
+            currentOffset += CHUNK_SIZE;
+            
+            // Small delay to prevent UI lockup
+            await new Promise(r => setTimeout(r, 50));
+            
+        } catch (e) {
+            console.error(e);
+            break;
+        }
+    }
+
+    if (found) {
+        processRaceData(surroundingEntries);
+    }
+
+    if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Refresh";
+    }
 }
 
 function processRaceData(surroundingEntries) {
@@ -83,6 +184,7 @@ function processRaceData(surroundingEntries) {
     if (!myNewEntry) return; 
 
     foundCharacterEntry = myNewEntry;
+    updateHeaderInfo();
     const myXp = myNewEntry.character.experience;
     const myClass = myNewEntry.character.class;
 
@@ -114,32 +216,59 @@ function processRaceData(surroundingEntries) {
 
     const globalAhead = getNeighbor(surroundingEntries, myNewEntry, 'ahead', allFetchedEntries);
     const globalBehind = getNeighbor(surroundingEntries, myNewEntry, 'behind', allFetchedEntries);
-    renderLadderTable('globalTable', globalAhead, globalBehind, myXp);
+    renderLadderTable('globalTable', globalAhead, myNewEntry, globalBehind, myXp, 'rank');
 
     const ascAhead = getNeighbor(ascEntries, myNewEntry, 'ahead', cachedAscEntries);
     const ascBehind = getNeighbor(ascEntries, myNewEntry, 'behind', cachedAscEntries);
-    renderLadderTable('ascTable', ascAhead, ascBehind, myXp);
+    renderLadderTable('ascTable', ascAhead, myNewEntry, ascBehind, myXp, 'ascendancy_rank');
 }
 
-function renderLadderTable(elementId, ahead, behind, myXp) {
+function renderLadderTable(elementId, ahead, current, behind, myXp, rankField) {
     const container = document.getElementById(elementId);
     container.innerHTML = '';
     
     const createRow = (title, entry, cssClass) => {
-        const xpDiff = entry ? entry.character.experience - myXp : 0;
-        const xpClass = xpDiff > 0 ? 'xp-plus' : (xpDiff < 0 ? 'xp-minus' : 'xp-neutral');
-        const xpText = entry ? `XP: ${xpDiff > 0 ? '+' : ''}${xpDiff.toLocaleString()}` : '';
+        let xpDisplay = '';
+        let xpColor = '#eeeeee';
+        let rankDisplay = '';
+        
+        if (entry) {
+            if (cssClass === 'row-track') {
+                xpDisplay = `XP: ${entry.character.experience.toLocaleString()}`;
+                xpColor = '#ffffff';
+            } else {
+                const diff = entry.character.experience - myXp;
+                const sign = diff > 0 ? '+' : '';
+                xpDisplay = `XP: ${sign}${diff.toLocaleString()}`;
+                if (diff > 0) xpColor = '#2CC985';
+                else if (diff < 0) xpColor = '#FF5252';
+            }
+            rankDisplay = '#' + (entry[rankField] || entry.rank || '?');
+        }
+
+        const progress = entry ? calculateProgress(entry.character.level, entry.character.experience) : 0;
+        
+        // Colors matching desktop app
+        const bgColors = {
+            'row-ahead': '#242424', // gray14
+            'row-track': '#404040', // gray25
+            'row-behind': '#2b2b2b' // gray17
+        };
         
         return `
-            <div class="race-row ${cssClass}">
-                <div class="col-title">${title}</div>
-                <div class="col-name">${entry ? `${entry.character.name} (Lvl ${entry.character.level})` : 'N/A'}</div>
-                <div class="col-xp ${xpClass}">${xpText}</div>
-                <div class="col-rank">${entry ? '#' + entry.rank : ''}</div>
+            <div class="race-row ${cssClass}" style="display: flex; align-items: center; padding: 5px 0; background-color: ${bgColors[cssClass] || 'transparent'}; margin-bottom: 1px; font-family: 'Segoe UI', sans-serif; font-size: 13px; color: #eeeeee;">
+                <div class="col-title" style="width: 60px; font-weight: bold; padding-left: 10px;">${title}</div>
+                <div class="col-name" style="flex: 1; padding: 0 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${entry ? `${entry.character.name} (Lvl ${entry.character.level})` : 'N/A'}</div>
+                <div class="col-progress" style="width: 100px; margin: 0 10px; background-color: #ffffff; height: 8px;">
+                    <div style="background-color: #2CC985; height: 100%; width: ${progress}%;"></div>
+                </div>
+                <div class="col-xp" style="width: 130px; text-align: right; padding: 0 5px; color: ${xpColor}; font-variant-numeric: tabular-nums;">${xpDisplay}</div>
+                <div class="col-rank" style="width: 60px; text-align: right; padding-right: 10px; color: #ffffff;">${rankDisplay}</div>
             </div>
         `;
     };
 
     container.innerHTML += createRow("Ahead:", ahead, "row-ahead");
+    container.innerHTML += createRow("You:", current, "row-track");
     container.innerHTML += createRow("Behind:", behind, "row-behind");
 }

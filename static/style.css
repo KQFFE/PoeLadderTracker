@@ -10,7 +10,7 @@ body {
 
 .container {
     width: 100%;
-    max-width: 700px;
+    max-width: 900px;
 }
 
 h1, h2, h3 { margin-top: 0; }
@@ -22,9 +22,19 @@ h1, h2, h3 { margin-top: 0; }
     margin-bottom: 15px;
 }
 
+.control-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end; /* Align items to the bottom */
+    margin-bottom: 10px;
+}
+.control-row .control-group {
+    flex: 1;
+}
 .control-group { margin-bottom: 10px; }
 label { display: block; margin-bottom: 5px; font-weight: bold; color: #ccc; }
-select, input[type="text"] {
+
+input[type="text"] {
     width: 100%;
     padding: 8px;
     background-color: #383838;
@@ -32,6 +42,34 @@ select, input[type="text"] {
     color: white;
     border-radius: 4px;
     box-sizing: border-box;
+}
+
+select {
+    width: 100%;
+    padding: 8px 35px 8px 10px;
+    background-color: #1f6aa5;
+    border: none;
+    color: white;
+    border-radius: 4px;
+    box-sizing: border-box;
+    outline: none;
+    cursor: pointer;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-weight: bold;
+    appearance: none; -webkit-appearance: none; -moz-appearance: none;
+    background-image: 
+        url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e"),
+        linear-gradient(to left, rgba(0,0,0,0.2) 1px, transparent 1px),
+        linear-gradient(to left, #144870 30px, transparent 30px);
+    background-position: right 3px center, right 30px center, center;
+    background-size: 24px 24px, 1px 100%, 100% 100%;
+    background-repeat: no-repeat;
+}
+select:hover { background-color: #144870; }
+option { background-color: #2b2b2b; color: white; }
+
+.private-league-row .checkbox-container {
+    padding-bottom: 8px; /* Align checkbox with input field */
 }
 
 .button-group { display: flex; gap: 10px; margin-top: 15px; }
@@ -59,9 +97,39 @@ button:hover:not(:disabled) { background-color: #144870; }
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     padding: 0; /* Padding is now handled by content inside */
     box-sizing: border-box;
-    overflow-y: auto; /* Enable scrolling for the table */
-    margin-bottom: 20px;
+    overflow-y: auto;
+    margin-bottom: 10px;
     white-space: pre-wrap; /* Preserve newlines for text messages (Search mode) */
+}
+
+/* New Search Frame styles */
+.search-frame {
+    background-color: #2b2b2b;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 15px;
+}
+
+.search-input-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+.search-input-row input {
+    flex: 0 0 50%;
+}
+.search-input-row button {
+    flex: 1;
+    white-space: nowrap;
+    padding: 8px 15px;
+    border: 1px solid transparent;
+}
+
+#showMoreBtn {
+    width: 100%;
+    display: block;
+    margin-bottom: 10px;
+    box-sizing: border-box;
 }
 
 /* Table Styling for Fetch Results */
