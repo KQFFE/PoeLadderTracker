@@ -42,7 +42,9 @@ def process_ladder_data(all_fetched_entries, selected_ascendancy=None, limit=5):
             'xp': char_data['experience'],
             'name': char_data['name'],
             'global_rank': entry['rank'],
-            'asc_rank': asc_rank
+            'asc_rank': asc_rank,
+            'dead': entry.get('dead', False),
+            'retired': entry.get('retired', False)
         }
 
         if len(ascendancy_groups[ascendancy]) < limit:

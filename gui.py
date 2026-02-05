@@ -29,6 +29,7 @@ class RaceModeWindow(customtkinter.CTkToplevel):
         self.master_app = master
         self.target_entry = target_character_entry
         self.auto_refresh_job = None
+        self.xp_history = {}
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
         self.title("Race Mode")
@@ -163,20 +164,29 @@ class RaceModeWindow(customtkinter.CTkToplevel):
         name_label = customtkinter.CTkLabel(row_frame, text="--", anchor="w", fg_color=fg_color)
         name_label.grid(row=0, column=1, sticky="ew", ipady=3, padx=5)
         
-        # Progress Bar (Col 2)
-        progress_bar = customtkinter.CTkProgressBar(row_frame, height=10, width=100, corner_radius=0, progress_color="#2CC985", fg_color="white")
-        progress_bar.grid(row=0, column=2, sticky="ew", padx=5)
+        # Progress Container (Col 2)
+        progress_container = customtkinter.CTkFrame(row_frame, fg_color="transparent", width=100)
+        progress_container.grid(row=0, column=2, padx=(5, 0))
+        progress_container.grid_columnconfigure(0, weight=1)
+        progress_container.grid_rowconfigure(0, weight=1)
+
+        progress_bar = customtkinter.CTkProgressBar(progress_container, width=100, height=10, corner_radius=0, progress_color="#2CC985", fg_color="white")
+        progress_bar.grid(row=0, column=0, sticky="ew")
         progress_bar.set(0)
 
+        status_label = customtkinter.CTkLabel(progress_container, text="", font=customtkinter.CTkFont(size=16))
+        status_label.grid(row=0, column=0)
+        status_label.grid_remove()
+
         # XP (Col 3)
-        xp_label = customtkinter.CTkLabel(row_frame, text="--", width=130, anchor="e", fg_color=fg_color)
-        xp_label.grid(row=0, column=3, sticky="ew", ipady=3, padx=5)
+        xp_label = customtkinter.CTkLabel(row_frame, text="--", width=80, anchor="e", fg_color=fg_color)
+        xp_label.grid(row=0, column=3, sticky="ew", ipady=3, padx=(2, 5))
         
         # Rank (Col 4)
         rank_label = customtkinter.CTkLabel(row_frame, text="#--", width=60, anchor="e", fg_color=fg_color)
         rank_label.grid(row=0, column=4, sticky="ew", ipady=3, padx=(0,5))
         
-        return name_label, xp_label, rank_label, progress_bar
+        return name_label, xp_label, rank_label, (progress_bar, status_label)
 
     def toggle_always_on_top(self):
         is_on_top = self.always_on_top_var.get() == "on"
@@ -333,53 +343,115 @@ class RaceModeWindow(customtkinter.CTkToplevel):
         my_new_xp = int(my_new_entry['character']['experience'])
         my_ascendancy = my_new_entry['character']['class']
 
+        # Calculate rates and update history
+        current_time = time.time()
+        rates = {}
+        for entry in surrounding_entries:
+            name = entry['character']['name']
+            xp = entry['character']['experience']
+            if name in self.xp_history:
+                # Handle tuple unpacking safely for existing sessions
+                history_data = self.xp_history[name]
+                if len(history_data) == 2:
+                    last_xp, last_time = history_data
+                    last_rate = 0
+                    last_update_time = last_time
+                else:
+                    last_xp, last_time, last_rate, last_update_time = history_data
+
+                time_diff = current_time - last_time
+                xp_diff = xp - last_xp
+
+                if xp_diff > 0 and time_diff > 0:
+                    current_rate = (xp_diff / time_diff) * 3600
+                    rates[name] = current_rate
+                    self.xp_history[name] = (xp, current_time, current_rate, current_time)
+                else:
+                    # XP Unchanged: Check for idle timeout (5 mins)
+                    time_since_update = current_time - last_update_time
+                    if time_since_update > 300:
+                        rates[name] = 0
+                    else:
+                        rates[name] = last_rate
+                    
+                    # Update timestamp but preserve last_rate and last_update_time
+                    self.xp_history[name] = (xp, current_time, rates[name], last_update_time)
+            else:
+                rates[name] = 0
+                self.xp_history[name] = (xp, current_time, 0, current_time)
+
         def update_row_data(labels, neighbor_entry, target_xp, rank_field='rank'):
-            name_label, xp_label, rank_label, progress_bar = labels
+            name_label, xp_label, rank_label, progress_widgets = labels
+            progress_bar, status_label = progress_widgets
             if neighbor_entry:
                 neighbor_xp = int(neighbor_entry['character']['experience'])
-                xp_diff = neighbor_xp - target_xp
                 name_label.configure(text=f"{neighbor_entry['character']['name']} (Lvl {neighbor_entry['character']['level']})")
                 
+                rate = int(rates.get(neighbor_entry['character']['name'], 0))
+
                 # Check if this is the tracked character
                 if neighbor_entry['character']['name'] == self.target_entry['character']['name']:
-                     xp_label.configure(text=f"XP: {neighbor_xp:,}")
+                     if rate >= 1_000_000:
+                         xp_label.configure(text=f"XP/h: {rate/1_000_000:.2f}m".replace('.', ','))
+                     else:
+                         xp_label.configure(text=f"XP/h: {rate:,}")
                      xp_label.configure(text_color=("black", "white"))
                 else:
-                    xp_label.configure(text=f"XP: {xp_diff:+,}")
-                    if xp_diff > 0:
-                        xp_label.configure(text_color="#2CC985") # Green
-                    elif xp_diff < 0:
-                        xp_label.configure(text_color="#FF5252") # Red
+                    if neighbor_entry.get('dead'):
+                        xp_label.configure(text="💀")
+                        xp_label.configure(text_color="#FF5252")
+                    elif neighbor_entry.get('retired'):
+                        xp_label.configure(text="♿")
+                        xp_label.configure(text_color="gray")
                     else:
-                        xp_label.configure(text_color=("black", "white"))
+                        if rate >= 1_000_000:
+                            xp_label.configure(text=f"{rate/1_000_000:.2f} m/h".replace('.', ','))
+                        else:
+                            xp_label.configure(text=f"{rate:,}/h")
+                        if rate > 0:
+                            xp_label.configure(text_color="#2CC985")
+                        else:
+                            xp_label.configure(text_color="gray")
 
                 rank_val = neighbor_entry.get(rank_field, '?')
                 rank_label.configure(text=f"#{rank_val}")
                 
-                # Calculate Level Progress
-                lvl = neighbor_entry['character']['level']
-                curr_xp = neighbor_xp
-                
-                if lvl >= 100:
-                    progress = 1.0
-                elif curr_xp > 0:
-                    # Dynamically find the XP bracket to ensure valid progress calculation
-                    # regardless of the XP_THRESHOLDS list structure
-                    idx = bisect.bisect_right(XP_THRESHOLDS, curr_xp) - 1
-                    if idx >= 0 and idx < len(XP_THRESHOLDS) - 1:
-                        start_xp = XP_THRESHOLDS[idx]
-                        end_xp = XP_THRESHOLDS[idx + 1]
-                        progress = (curr_xp - start_xp) / (end_xp - start_xp) if end_xp > start_xp else 0
-                    else:
-                        progress = 1.0 if idx >= len(XP_THRESHOLDS) - 1 else 0
+                # Progress Bar or Status Icon
+                if neighbor_entry.get('dead'):
+                    progress_bar.grid_remove()
+                    status_label.configure(text="💀", text_color="#FF5252")
+                    status_label.grid()
+                elif neighbor_entry.get('retired'):
+                    progress_bar.grid_remove()
+                    status_label.configure(text="♿", text_color="gray")
+                    status_label.grid()
                 else:
-                    progress = 0
-                progress_bar.set(progress)
+                    status_label.grid_remove()
+                    progress_bar.grid()
+                    # Calculate Level Progress
+                    lvl = neighbor_entry['character']['level']
+                    curr_xp = neighbor_xp
+                    
+                    if lvl >= 100:
+                        progress = 1.0
+                    elif curr_xp > 0:
+                        idx = bisect.bisect_right(XP_THRESHOLDS, curr_xp) - 1
+                        if idx >= 0 and idx < len(XP_THRESHOLDS) - 1:
+                            start_xp = XP_THRESHOLDS[idx]
+                            end_xp = XP_THRESHOLDS[idx + 1]
+                            progress = (curr_xp - start_xp) / (end_xp - start_xp) if end_xp > start_xp else 0
+                        else:
+                            progress = 1.0 if idx >= len(XP_THRESHOLDS) - 1 else 0
+                    else:
+                        progress = 0
+                    progress_bar.set(progress)
             else:
                 name_label.configure(text="N/A")
                 xp_label.configure(text="")
                 xp_label.configure(text_color=("black", "white"))
                 rank_label.configure(text="")
+                status_label.grid_remove()
+                progress_bar.grid()
                 progress_bar.set(0)
 
         # Helper to find neighbors in cached data if live data fails
@@ -750,29 +822,38 @@ class App(customtkinter.CTk):
             rank_label = customtkinter.CTkLabel(row_frame, text=rank_str, width=rank_col_width, anchor="e")
             rank_label.pack(side="right", padx=10, pady=4)
 
-            # Progress Bar
-            progress_bar = customtkinter.CTkProgressBar(row_frame, width=progress_col_width, height=8, progress_color="#2CC985")
-            progress_bar.pack(side="right", padx=10, pady=4)
-            
-            lvl = char['level']
-            xp = char['xp']
-            if lvl >= 100:
-                prog = 1.0
+            # This list will hold all widgets in the row for the hover effect
+            hover_widgets = [row_frame, rank_label]
+
+            # Progress Bar or Status Icon
+            if char.get('dead'):
+                status_label = customtkinter.CTkLabel(row_frame, text="💀", width=progress_col_width, anchor="center", text_color="#FF5252", font=customtkinter.CTkFont(size=16))
+                status_label.pack(side="right", padx=10, pady=4)
+                hover_widgets.append(status_label)
+            elif char.get('retired'):
+                status_label = customtkinter.CTkLabel(row_frame, text="♿", width=progress_col_width, anchor="center", text_color="gray", font=customtkinter.CTkFont(size=16))
+                status_label.pack(side="right", padx=10, pady=4)
+                hover_widgets.append(status_label)
             else:
-                prev_xp = XP_THRESHOLDS[lvl-1]
-                next_xp = XP_THRESHOLDS[lvl]
-                prog = (xp - prev_xp) / (next_xp - prev_xp)
-            progress_bar.set(prog)
+                progress_bar = customtkinter.CTkProgressBar(row_frame, width=progress_col_width, height=8, progress_color="#2CC985")
+                progress_bar.pack(side="right", padx=10, pady=4)
+                lvl, xp = char['level'], char['xp']
+                prog = 1.0 if lvl >= 100 else (xp - XP_THRESHOLDS[lvl-1]) / (XP_THRESHOLDS[lvl] - XP_THRESHOLDS[lvl-1])
+                progress_bar.set(prog)
+                hover_widgets.append(progress_bar)
 
             # Pack Left-aligned
             asc_label = customtkinter.CTkLabel(row_frame, text=char['ascendancy'], width=asc_col_width, anchor="w")
             asc_label.pack(side="left", padx=10, pady=4)
+            hover_widgets.append(asc_label)
 
             lvl_label = customtkinter.CTkLabel(row_frame, text=char['level'], width=lvl_col_width, anchor="center")
             lvl_label.pack(side="left", padx=10, pady=4)
+            hover_widgets.append(lvl_label)
 
             name_label = customtkinter.CTkLabel(row_frame, text=char['name'], anchor="w")
             name_label.pack(side="left", padx=10, pady=4, expand=True, fill="x")
+            hover_widgets.append(name_label)
 
             # Make name clickable if account name is available
             acc_name = char_to_acc.get(char['name'])
@@ -784,7 +865,7 @@ class App(customtkinter.CTk):
             def on_enter(e, wf=row_frame): wf.configure(fg_color=HOVER_COLOR)
             def on_leave(e, wf=row_frame): wf.configure(fg_color="transparent")
 
-            for widget in [row_frame, asc_label, lvl_label, name_label, rank_label, progress_bar]:
+            for widget in hover_widgets:
                 widget.bind("<Enter>", on_enter)
                 widget.bind("<Leave>", on_leave)
             

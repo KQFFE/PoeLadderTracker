@@ -2,6 +2,7 @@ let foundCharacterEntry = null;
 let leagueId = null;
 let allFetchedEntries = [];
 let raceInterval = null;
+let xpHistory = {};
 
 const CHUNK_SIZE = 200;
 const XP_THRESHOLDS = [
@@ -32,6 +33,11 @@ document.addEventListener('DOMContentLoaded', () => {
     foundCharacterEntry = JSON.parse(localStorage.getItem('raceModeCharacter'));
     leagueId = localStorage.getItem('raceModeLeagueId');
     allFetchedEntries = JSON.parse(localStorage.getItem('allFetchedEntries')) || [];
+    
+    const storedHistory = localStorage.getItem('raceModeXpHistory');
+    if (storedHistory) {
+        xpHistory = JSON.parse(storedHistory);
+    }
 
     if (foundCharacterEntry && leagueId) {
         document.title = `Race: ${foundCharacterEntry.character.name}`;
@@ -203,6 +209,56 @@ function processRaceData(surroundingEntries) {
     const myXp = myNewEntry.character.experience;
     const myClass = myNewEntry.character.class;
 
+    // Calculate rates and update history
+    const now = Date.now();
+    const rates = {};
+    surroundingEntries.forEach(entry => {
+        const name = entry.character.name;
+        if (xpHistory[name]) {
+            const prev = xpHistory[name];
+            const timeDiff = (now - prev.time) / 1000;
+            const xpDiff = entry.character.experience - prev.xp;
+            
+            if (xpDiff > 0 && timeDiff > 0) {
+                // XP Changed: Calculate new rate
+                const currentRate = (xpDiff / timeDiff) * 3600;
+                rates[name] = currentRate;
+                xpHistory[name] = {
+                    xp: entry.character.experience,
+                    time: now,
+                    lastRate: currentRate,
+                    lastUpdate: now
+                };
+            } else {
+                // XP Unchanged: Check for idle timeout (5 mins)
+                const lastUpdate = prev.lastUpdate || prev.time;
+                const timeSinceUpdate = (now - lastUpdate) / 1000;
+                
+                if (timeSinceUpdate > 300) {
+                    rates[name] = 0;
+                } else {
+                    rates[name] = prev.lastRate || 0;
+                }
+                
+                // Update timestamp but preserve lastRate and lastUpdate
+                xpHistory[name] = {
+                    xp: entry.character.experience,
+                    time: now,
+                    lastRate: rates[name],
+                    lastUpdate: lastUpdate
+                };
+            }
+        } else {
+            rates[name] = 0;
+            xpHistory[name] = {
+                xp: entry.character.experience,
+                time: now,
+                lastRate: 0,
+                lastUpdate: now
+            };
+        }
+    });
+
     const getNeighbor = (list, selfEntry, direction, cache) => {
         const idx = list.findIndex(e => e.character.name === selfEntry.character.name);
         if (idx === -1) { // Not found in live slice, rely entirely on cache
@@ -231,14 +287,14 @@ function processRaceData(surroundingEntries) {
 
     const globalAhead = getNeighbor(surroundingEntries, myNewEntry, 'ahead', allFetchedEntries);
     const globalBehind = getNeighbor(surroundingEntries, myNewEntry, 'behind', allFetchedEntries);
-    renderLadderTable('globalTable', globalAhead, myNewEntry, globalBehind, myXp, 'rank');
+    renderLadderTable('globalTable', globalAhead, myNewEntry, globalBehind, myXp, 'rank', rates);
 
     const ascAhead = getNeighbor(ascEntries, myNewEntry, 'ahead', cachedAscEntries);
     const ascBehind = getNeighbor(ascEntries, myNewEntry, 'behind', cachedAscEntries);
-    renderLadderTable('ascTable', ascAhead, myNewEntry, ascBehind, myXp, 'ascendancy_rank');
+    renderLadderTable('ascTable', ascAhead, myNewEntry, ascBehind, myXp, 'ascendancy_rank', rates);
 }
 
-function renderLadderTable(elementId, ahead, current, behind, myXp, rankField) {
+function renderLadderTable(elementId, ahead, current, behind, myXp, rankField, rates) {
     const container = document.getElementById(elementId);
     container.innerHTML = '';
     
@@ -249,19 +305,46 @@ function renderLadderTable(elementId, ahead, current, behind, myXp, rankField) {
         
         if (entry) {
             if (cssClass === 'row-track') {
-                xpDisplay = `XP: ${entry.character.experience.toLocaleString()}`;
+                const rate = rates && rates[entry.character.name] ? rates[entry.character.name] : 0;
+                if (rate >= 1000000) {
+                    xpDisplay = `XP/h: ${(rate / 1000000).toFixed(2).replace('.', ',')}m`;
+                } else {
+                    xpDisplay = `XP/h: ${Math.floor(rate).toLocaleString()}`;
+                }
                 xpColor = '#ffffff';
             } else {
-                const diff = entry.character.experience - myXp;
-                const sign = diff > 0 ? '+' : '';
-                xpDisplay = `XP: ${sign}${diff.toLocaleString()}`;
-                if (diff > 0) xpColor = '#2CC985';
-                else if (diff < 0) xpColor = '#FF5252';
+                if (entry.dead) {
+                    xpDisplay = '💀';
+                    xpColor = '#FF5252';
+                } else if (entry.retired) {
+                    xpDisplay = '♿';
+                    xpColor = '#AAAAAA';
+                } else {
+                    const rate = rates && rates[entry.character.name] ? rates[entry.character.name] : 0;
+                    if (rate >= 1000000) {
+                        xpDisplay = `${(rate / 1000000).toFixed(2).replace('.', ',')} m/h`;
+                    } else {
+                        xpDisplay = `${Math.floor(rate).toLocaleString()}/h`;
+                    }
+                    if (rate > 0) xpColor = '#2CC985';
+                    else xpColor = '#888888';
+                }
             }
             rankDisplay = '#' + (entry[rankField] || entry.rank || '?');
         }
 
         const progress = entry ? calculateProgress(entry.character.level, entry.character.experience) : 0;
+        let progressContent;
+
+        if (entry && entry.dead) {
+            progressContent = `<div class="col-progress" style="width: 100px; margin: 0 10px; text-align: center;"><span style="color: #FF5252; font-size: 16px; line-height: 1;">💀</span></div>`;
+        } else if (entry && entry.retired) {
+            progressContent = `<div class="col-progress" style="width: 100px; margin: 0 10px; text-align: center;"><span style="color: #AAAAAA; font-size: 16px; line-height: 1;">♿</span></div>`;
+        } else {
+            progressContent = `<div class="col-progress" style="width: 100px; margin: 0 10px; background-color: #ffffff; height: 8px;">
+                    <div style="background-color: #2CC985; height: 100%; width: ${progress}%;"></div>
+                </div>`;
+        }
         
         // Colors matching desktop app
         const bgColors = {
@@ -274,9 +357,7 @@ function renderLadderTable(elementId, ahead, current, behind, myXp, rankField) {
             <div class="race-row ${cssClass}" style="display: flex; align-items: center; padding: 5px 0; background-color: ${bgColors[cssClass] || 'transparent'}; margin-bottom: 1px; font-family: 'Segoe UI', sans-serif; font-size: 13px; color: #eeeeee;">
                 <div class="col-title" style="width: 60px; font-weight: bold; padding-left: 10px;">${title}</div>
                 <div class="col-name" style="flex: 1; padding: 0 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${entry ? `${entry.character.name} (Lvl ${entry.character.level})` : 'N/A'}</div>
-                <div class="col-progress" style="width: 100px; margin: 0 10px; background-color: #ffffff; height: 8px;">
-                    <div style="background-color: #2CC985; height: 100%; width: ${progress}%;"></div>
-                </div>
+                ${progressContent}
                 <div class="col-xp" style="width: 130px; text-align: right; padding: 0 5px; color: ${xpColor}; font-variant-numeric: tabular-nums;">${xpDisplay}</div>
                 <div class="col-rank" style="width: 60px; text-align: right; padding-right: 10px; color: #ffffff;">${rankDisplay}</div>
             </div>
