@@ -5,10 +5,11 @@ import bisect
 import webbrowser
 # Use the new singleton API client
 from api import GGGAPIClient
-from data_processor import process_ladder_data, ALL_ASCENDANCY_NAMES, STANDARD_ASCENDANCIES, TEMPORARY_ASCENDANCIES
+from data_processor import process_ladder_data, ALL_ASCENDANCY_NAMES, STANDARD_ASCENDANCIES, TEMPORARY_ASCENDANCIES, BASE_CLASSES
 
 CHUNK_SIZE = 200
-
+DROPDOWN_SEPARATOR = "──────────"
+ 
 # Cumulative XP required to reach each level (Index 0 = Level 1, Index 99 = Level 100)
 XP_THRESHOLDS = [
     0, 525, 1760, 3781, 7184, 12186, 19324, 29377, 43181, 61693, 
@@ -179,7 +180,7 @@ class RaceModeWindow(customtkinter.CTkToplevel):
         status_label.grid_remove()
 
         # XP (Col 3)
-        xp_label = customtkinter.CTkLabel(row_frame, text="--", width=80, anchor="e", fg_color=fg_color)
+        xp_label = customtkinter.CTkLabel(row_frame, text="--", width=100, anchor="e", fg_color=fg_color)
         xp_label.grid(row=0, column=3, sticky="ew", ipady=3, padx=(2, 5))
         
         # Rank (Col 4)
@@ -542,7 +543,7 @@ class App(customtkinter.CTk):
 
         self.ascendancy_label = customtkinter.CTkLabel(self.options_frame, text="Ascendancy")
         self.ascendancy_label.grid(row=0, column=1, padx=10, pady=(10,0), sticky="w")
-        self.ascendancy_menu = customtkinter.CTkOptionMenu(self.options_frame, values=["All"] + STANDARD_ASCENDANCIES, command=self.on_ascendancy_change)
+        self.ascendancy_menu = customtkinter.CTkOptionMenu(self.options_frame, values=["All"] + STANDARD_ASCENDANCIES + [DROPDOWN_SEPARATOR] + BASE_CLASSES, command=self.on_ascendancy_change)
         self.ascendancy_menu.grid(row=1, column=1, padx=10, pady=(0,10), sticky="ew")
 
         self.private_league_check = customtkinter.CTkCheckBox(self.options_frame, text="Use Private League", command=self.toggle_private_league)
@@ -571,13 +572,15 @@ class App(customtkinter.CTk):
         self.char_name_entry.bind("<Return>", self.start_search_thread)
 
         self.search_button = customtkinter.CTkButton(self.search_frame, text="Search Character", command=self.start_search_thread)
-        self.search_button.grid(row=1, column=1, padx=(10,5), pady=(0,10))
+        self.search_button.grid(row=1, column=0, padx=(10,5), pady=(0,10), sticky="e")
         
         self.stop_search_button = customtkinter.CTkButton(self.search_frame, text="Stop", command=self.stop_search, state="disabled")
-        self.stop_search_button.grid(row=1, column=2, padx=(0,5), pady=(0,10))
+        self.stop_search_button.grid(row=2, column=0, padx=(10,5), pady=(0,10), sticky="w")
+        self.stop_search_button.grid_columnconfigure(0, weight=1)
 
         self.race_mode_button = customtkinter.CTkButton(self.search_frame, text="Race Mode", command=self.launch_race_mode_thread, state="disabled")
-        self.race_mode_button.grid(row=1, column=3, padx=(0,10), pady=(0,10))
+        self.race_mode_button.grid(row=2, column=0, padx=(0,10), pady=(0,10), sticky="e")
+        self.race_mode_button.grid_columnconfigure(0, weight=1)
         
         # --- Results Frame (replaces Textbox) ---
         self.results_frame = customtkinter.CTkScrollableFrame(self)
@@ -631,9 +634,9 @@ class App(customtkinter.CTk):
     def on_league_change(self, choice):
         # Filter ascendancies based on league type
         if "Phrecia" in choice:
-            new_values = ["All"] + TEMPORARY_ASCENDANCIES
+            new_values = ["All"] + TEMPORARY_ASCENDANCIES 
         else:
-            new_values = ["All"] + STANDARD_ASCENDANCIES
+            new_values = ["All"] + STANDARD_ASCENDANCIES + [DROPDOWN_SEPARATOR] + BASE_CLASSES
         
         self.ascendancy_menu.configure(values=new_values)
         self.ascendancy_menu.set("All")
@@ -884,7 +887,10 @@ class App(customtkinter.CTk):
             if char_class in ascendancy_counts: ascendancy_counts[char_class] += 1
         
         selected_league = self.get_selected_league() or ""
-        relevant_asc = TEMPORARY_ASCENDANCIES if "Phrecia" in selected_league else STANDARD_ASCENDANCIES
+        if "Phrecia" in selected_league:
+            relevant_asc = TEMPORARY_ASCENDANCIES
+        else:
+            relevant_asc = STANDARD_ASCENDANCIES + BASE_CLASSES
         return all(ascendancy_counts[asc] >= self.current_limit for asc in relevant_asc)
 
     def fetch_and_display_data(self):
@@ -898,8 +904,9 @@ class App(customtkinter.CTk):
             return
 
         ascendancy = self.ascendancy_menu.get()
-        if ascendancy == "All": ascendancy = None
-
+        if ascendancy == "All" or ascendancy == DROPDOWN_SEPARATOR:
+            ascendancy = None
+ 
         api_error = False
         while not self._should_stop_fetching(ascendancy) and not self.stop_search_event.is_set():
             self.status_label.configure(text=f"Fetching characters {self.current_offset} to {self.current_offset + CHUNK_SIZE}...")

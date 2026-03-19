@@ -1,8 +1,8 @@
 STANDARD_ASCENDANCIES = [
-    "Ascendant", "Assassin", "Berserker", "Champion", "Chieftain", 
-    "Deadeye", "Elementalist", "Gladiator", "Guardian", "Hierophant", 
-    "Inquisitor", "Juggernaut", "Necromancer", "Occultist", "Pathfinder", 
-    "Saboteur", "Slayer", "Trickster", "Warden"
+    "Assassin", "Berserker", "Champion", "Chieftain", "Deadeye",
+    "Elementalist", "Gladiator", "Guardian", "Hierophant", "Inquisitor",
+    "Juggernaut", "Necromancer", "Occultist", "Pathfinder", "Reliquarian",
+    "Saboteur", "Scion", "Slayer", "Trickster", "Warden"
 ]
 
 TEMPORARY_ASCENDANCIES = [
@@ -12,9 +12,13 @@ TEMPORARY_ASCENDANCIES = [
     "Puppeteer", "Scavenger", "Servant of Arakaali", "Surfcaster", 
     "Whisperer", "Wildspeaker"
 ]
-
-ALL_ASCENDANCY_NAMES = STANDARD_ASCENDANCIES + TEMPORARY_ASCENDANCIES
-
+ 
+BASE_CLASSES = [
+    "Ascendant", "Duelist", "Marauder", "Ranger", "Shadow", "Templar", "Witch"
+]
+ 
+ALL_ASCENDANCY_NAMES = STANDARD_ASCENDANCIES + TEMPORARY_ASCENDANCIES + BASE_CLASSES
+ 
 def process_ladder_data(all_fetched_entries, selected_ascendancy=None, limit=5):
     """
     Filters the top characters for each Ascendancy from the raw ladder data,

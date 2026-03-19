@@ -5,6 +5,7 @@ import time
 from flask import Flask, jsonify, request, render_template, send_from_directory
 from dotenv import load_dotenv
 from urllib.parse import urlencode
+from data_processor import STANDARD_ASCENDANCIES, TEMPORARY_ASCENDANCIES, BASE_CLASSES
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
@@ -43,7 +44,10 @@ app = Flask(__name__, static_folder=resource_path('static'), template_folder=res
 @app.route('/')
 def index():
     """Serves the main HTML page of the web application."""
-    return render_template('index.html')
+    return render_template('index.html',
+                           standard_ascendancies=STANDARD_ASCENDANCIES,
+                           temporary_ascendancies=TEMPORARY_ASCENDANCIES,
+                           base_classes=BASE_CLASSES)
 
 @app.route('/static/<path:path>')
 def send_static(path):

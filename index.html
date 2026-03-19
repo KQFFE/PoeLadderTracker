@@ -88,5 +88,46 @@
         <div class="disclaimer">This product isn't affiliated with or endorsed by Grinding Gear Games in any way.</div>
     </div>
     <script src="/static/script.js"></script>
+    <script>
+        // Inject data from Flask/Jinja2
+        const standardAscendancies = {{ standard_ascendancies|tojson }};
+        const temporaryAscendancies = {{ temporary_ascendancies|tojson }};
+        const baseClasses = {{ base_classes|tojson }};
+        const DROPDOWN_SEPARATOR = "──────────";
+
+        const leagueSelect = document.getElementById('leagueSelect');
+        const ascendancySelect = document.getElementById('ascendancySelect');
+
+        function populateAscendancies() {
+            const leagueName = leagueSelect.value;
+            ascendancySelect.innerHTML = ''; 
+
+            let options = [];
+            if (leagueName && leagueName.includes("Phrecia")) {
+                options = ["All", ...temporaryAscendancies];
+            } else {
+                options = ["All", ...standardAscendancies, DROPDOWN_SEPARATOR, ...baseClasses];
+            }
+
+            options.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                if (name === DROPDOWN_SEPARATOR) {
+                    option.disabled = true;
+                }
+                ascendancySelect.appendChild(option);
+            });
+        }
+
+        leagueSelect.addEventListener('change', populateAscendancies);
+        
+        // Watch for league list population (async fetch from script.js)
+        const observer = new MutationObserver(populateAscendancies);
+        observer.observe(leagueSelect, { childList: true });
+        
+        // Initial population
+        populateAscendancies();
+    </script>
 </body>
 </html>
