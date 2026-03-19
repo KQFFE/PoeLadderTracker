@@ -1,5 +1,6 @@
 let allFetchedEntries = [];
 let foundCharacterEntry = null;
+let displayedCharacterNames = new Set();
 let raceInterval = null;
 let xpHistory = {};
 let isSearching = false;
@@ -52,27 +53,37 @@ function getPoeNinjaSlug(leagueId) {
     // Permanent leagues
     if (slug === 'standard') return 'standard';
     if (slug === 'hardcore') return 'hardcore';
+    if (slug === 'ruthless') return 'ruthless';
+    if (slug === 'hardcore ruthless') return 'hcruthless';
     if (slug === 'ssf standard') return 'ssf';
     if (slug === 'ssf hardcore') return 'hcssf';
+    if (slug === 'ssf ruthless') return 'ssfruthless';
+    if (slug === 'ssf hardcore ruthless') return 'hcssfruthless';
 
-    let prefix = '';
-    let suffix = '';
+    // Event leagues
+    slug = slug.replace(/[(),]/g, ' ');
+    const parts = slug.split(/\s+/).filter(p => p);
+    const keywords = ["hardcore", "hc", "ssf", "ruthless", "r"];
+    const baseLeagueParts = parts.filter(p => !keywords.includes(p));
+    const baseLeague = baseLeagueParts.join('');
 
-    if (slug.startsWith('ssf ')) {
-        slug = slug.substring(4);
-        suffix = 'ssf';
+    const isHc = parts.includes('hardcore') || parts.includes('hc');
+    const isSsf = parts.includes('ssf');
+    const isRuthless = parts.includes('ruthless') || parts.includes('r');
+
+    // Determine suffix - for event leagues, modifiers are appended to the league name
+    let suffix = "";
+    if (isHc) {
+        suffix += "hc";
     }
-    
-    if (slug.startsWith('hardcore ')) {
-        slug = slug.substring(9);
-        prefix = 'hc';
-    } else if (slug.startsWith('hc ')) {
-        slug = slug.substring(3);
-        prefix = 'hc';
+    if (isSsf) {
+        suffix += "ssf";
+    }
+    if (isRuthless) {
+        suffix += "r";
     }
 
-    slug = slug.replace(/ /g, '');
-    return `${prefix}${slug}${suffix}`;
+    return `${baseLeague}${suffix}`;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -98,7 +109,10 @@ async function fetchLeagues() {
                 const textB = (b.text || b.id).toLowerCase();
                 return textA.localeCompare(textB);
             });
+            
+            const ignoredLeagues = ["Hardcore", "SSF Hardcore", "Hardcore Ruthless", "SSF Hardcore Ruthless", "Hardcore SSF", "Hardcore SSF Ruthless"];
             leagues.forEach(league => {
+                if (ignoredLeagues.includes(league.id)) return;
                 const option = document.createElement('option');
                 option.value = league.id;
                 option.textContent = league.text || league.id;
@@ -191,6 +205,8 @@ async function fetchCharacters() {
     currentLimit = 10;
     currentOffset = 0;
     allFetchedEntries = [];
+    displayedCharacterNames.clear();
+    document.getElementById('resultsBox').innerHTML = '';
     await fetchAndDisplayData();
 }
 
@@ -211,7 +227,6 @@ async function fetchAndDisplayData() {
     document.getElementById('raceBtn').disabled = true;
     
     stopSearchFlag = false;
-    logResult(""); // Clear previous results
 
     while (true) {
         if (stopSearchFlag) break;
@@ -237,7 +252,7 @@ async function fetchAndDisplayData() {
             // Live update for "All"
             if (!selectedAsc) {
                 const results = processLadderData(allFetchedEntries, selectedAsc, currentLimit);
-                logResult(formatResults(results, leagueId));
+                renderResults(results, leagueId);
             }
 
             await new Promise(r => setTimeout(r, 500));
@@ -250,7 +265,7 @@ async function fetchAndDisplayData() {
 
     // Final update
     const results = processLadderData(allFetchedEntries, selectedAsc, currentLimit);
-    logResult(formatResults(results, leagueId));
+    renderResults(results, leagueId);
     
     updateStatus(`Done. Showing top ${currentLimit} for ${selectedAsc || 'all ascendancies'}.`);
     
@@ -376,7 +391,7 @@ async function searchCharacter() {
         const accName = foundCharacterEntry.account ? foundCharacterEntry.account.name : null;
         const formattedAccName = accName ? accName.replace('#', '-') : null;
         const nameDisplay = accName 
-            ? `<a href="https://poe.ninja/builds/${leagueSlug}/character/${encodeURIComponent(formattedAccName)}/${encodeURIComponent(char.name)}" target="_blank" style="color: #4da6ff; text-decoration: none;">${char.name}</a>`
+            ? `<a href="https://poe.ninja/poe1/builds/${leagueSlug}/character/${encodeURIComponent(formattedAccName)}/${encodeURIComponent(char.name)}" target="_blank" style="color: #4da6ff; text-decoration: none;">${char.name}</a>`
             : char.name;
 
         const html = `
@@ -754,39 +769,67 @@ function processLadderData(entries, selectedAscendancy, limit) {
     return results;
 }
 
-function formatResults(results, league) {
-    // Colors matching desktop app
+function renderResults(results, leagueId) {
+    const box = document.getElementById('resultsBox');
+    let table = box.querySelector('.results-table');
     const HEADER_TEXT_COLOR = "#4da6ff";
-    const HEADER_SEP_COLOR = "#999999"; // gray60
-    const ROW_SEP_COLOR = "#666666"; // gray40
+    const HEADER_SEP_COLOR = "#999999"; 
+    const ROW_SEP_COLOR = "#666666"; 
     const ASC_SEP_COLOR = "#4da6ff";
 
-    let output = `<table class="results-table" style="width: 100%; border-collapse: collapse;">
-        <thead>
-            <tr>
-                <th style="text-align: left; color: ${HEADER_TEXT_COLOR}; width: 140px;">Ascendancy</th>
-                <th style="text-align: center; color: ${HEADER_TEXT_COLOR}; width: 60px;">Level</th>
-                <th style="text-align: left; color: ${HEADER_TEXT_COLOR};">Character Name</th>
-                <th style="text-align: center; color: ${HEADER_TEXT_COLOR}; width: 100px;">Progress</th>
-                <th style="text-align: right; color: ${HEADER_TEXT_COLOR}; width: 120px;">Rank (Asc/Global)</th>
-            </tr>
-            <tr><td colspan="5" style="background-color: ${HEADER_SEP_COLOR}; height: 3px; padding: 0; border: none;"></td></tr>
-        </thead>
-        <tbody>`;
-    
-    let lastAsc = null;
+    if (!table) {
+        box.innerHTML = `<table class="results-table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr>
+                    <th style="text-align: left; color: ${HEADER_TEXT_COLOR}; width: 140px;">Ascendancy</th>
+                    <th style="text-align: center; color: ${HEADER_TEXT_COLOR}; width: 60px;">Level</th>
+                    <th style="text-align: left; color: ${HEADER_TEXT_COLOR};">Character Name</th>
+                    <th style="text-align: center; color: ${HEADER_TEXT_COLOR}; width: 100px;">Progress</th>
+                    <th style="text-align: right; color: ${HEADER_TEXT_COLOR}; width: 120px;">Rank (Asc/Global)</th>
+                </tr>
+                <tr><td colspan="5" style="background-color: ${HEADER_SEP_COLOR}; height: 3px; padding: 0; border: none;"></td></tr>
+            </thead>
+        </table>`;
+        table = box.querySelector('.results-table');
+    }
+
     results.forEach(char => {
-        if (lastAsc) {
-            if (char.ascendancy !== lastAsc) {
-                output += `<tr><td colspan="5" style="background-color: ${ASC_SEP_COLOR}; height: 2px; padding: 0; border: none;"></td></tr>`;
-            } else {
-                output += `<tr><td colspan="5" style="background-color: ${ROW_SEP_COLOR}; height: 2px; padding: 0; border: none;"></td></tr>`;
+        if (displayedCharacterNames.has(char.name)) return;
+
+        const asc = char.ascendancy;
+        const safeAsc = asc.replace(/\s+/g, '-');
+        let tbody = document.getElementById(`tbody-${safeAsc}`);
+
+        if (!tbody) {
+            tbody = document.createElement('tbody');
+            tbody.id = `tbody-${safeAsc}`;
+            table.appendChild(tbody);
+
+            // Add Ascendancy Separator if there are previous groups
+            if (table.tBodies.length > 1) {
+                const sepRow = document.createElement('tr');
+                sepRow.className = 'asc-separator';
+                sepRow.innerHTML = `<td colspan="5" style="background-color: ${ASC_SEP_COLOR}; height: 2px; padding: 0; border: none;"></td>`;
+                tbody.appendChild(sepRow);
             }
         }
+
+        // Add Row Separator if there are existing rows in this group
+        if (tbody.lastElementChild) {
+             const lastRow = tbody.lastElementChild;
+             if (!lastRow.classList.contains('asc-separator')) {
+                 const rowSep = document.createElement('tr');
+                 rowSep.innerHTML = `<td colspan="5" style="background-color: ${ROW_SEP_COLOR}; height: 2px; padding: 0; border: none;"></td>`;
+                 tbody.appendChild(rowSep);
+             }
+        }
+
         const progress = calculateProgress(char.level, char.xp);
-        const leagueSlug = getPoeNinjaSlug(league);
-        const nameHtml = char.account_name 
-            ? `<a href="https://poe.ninja/builds/${leagueSlug}/character/${encodeURIComponent(char.account_name.replace('#', '-'))}/${encodeURIComponent(char.name)}" target="_blank" style="color: #4da6ff; text-decoration: none;">${char.name}</a>`
+        const leagueSlug = getPoeNinjaSlug(leagueId);
+        const accName = char.account_name;
+        const formattedAccName = accName ? accName.replace('#', '-') : null;
+        const nameHtml = accName 
+            ? `<a href="https://poe.ninja/poe1/builds/${leagueSlug}/character/${encodeURIComponent(formattedAccName)}/${encodeURIComponent(char.name)}" target="_blank" style="color: #4da6ff; text-decoration: none;">${char.name}</a>`
             : char.name;
 
         let progressContent;
@@ -798,15 +841,15 @@ function formatResults(results, league) {
             progressContent = `<div style="background-color: #eee; height: 8px; width: 100%;"><div style="background-color: #2CC985; height: 100%; width: ${progress}%;"></div></div>`;
         }
 
-        output += `<tr>
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
             <td style="padding: 4px 10px;">${char.ascendancy}</td>
             <td style="text-align: center; padding: 4px 10px;">${char.level}</td>
             <td style="padding: 4px 10px;">${nameHtml}</td>
             <td style="padding: 4px 10px;">${progressContent}</td>
             <td style="text-align: right; padding: 4px 10px;">${char.asc_rank} / ${char.global_rank}</td>
-        </tr>`;
-        lastAsc = char.ascendancy;
+        `;
+        tbody.appendChild(tr);
+        displayedCharacterNames.add(char.name);
     });
-    output += `</tbody></table>`;
-    return output;
 }

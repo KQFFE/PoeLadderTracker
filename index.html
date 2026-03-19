@@ -5,6 +5,47 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PoE Ladder Tracker</title>
     <link rel="stylesheet" href="/static/style.css">
+    <style>
+        /* Default layout for the search input row */
+        .search-input-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        #charNameInput {
+            flex-grow: 1; /* Make input take up available space */
+        }
+
+        /* Responsive layout for smaller screens */
+        @media (max-width: 600px) {
+            .search-input-row {
+                display: grid;
+                grid-template-columns: 1fr auto; /* Input takes space, button is auto-sized */
+                gap: 10px;
+            }
+
+            #charNameInput {
+                grid-column: 1 / 2;
+                grid-row: 1;
+            }
+
+            #searchBtn {
+                grid-column: 2 / 3;
+                grid-row: 1;
+            }
+
+            #stopBtn {
+                grid-column: 1 / 2;
+                grid-row: 2;
+            }
+
+            #raceBtn {
+                grid-column: 2 / 3;
+                grid-row: 2;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -87,7 +128,7 @@
         </div>
         <div class="disclaimer">This product isn't affiliated with or endorsed by Grinding Gear Games in any way.</div>
     </div>
-    <script src="/static/script.js"></script>
+    <script src="/static/script.js?v=3"></script>
     <script>
         // Inject data from Flask/Jinja2
         const standardAscendancies = {{ standard_ascendancies|tojson }};

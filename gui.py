@@ -566,21 +566,19 @@ class App(customtkinter.CTk):
         self.search_frame.grid_columnconfigure(0, weight=1)
 
         self.char_name_label = customtkinter.CTkLabel(self.search_frame, text="Character Name")
-        self.char_name_label.grid(row=0, column=0, padx=10, pady=(10,0), sticky="w")
+        self.char_name_label.grid(row=0, column=0, columnspan=4, padx=10, pady=(10,0), sticky="w")
         self.char_name_entry = customtkinter.CTkEntry(self.search_frame)
         self.char_name_entry.grid(row=1, column=0, padx=10, pady=(0,10), sticky="ew")
         self.char_name_entry.bind("<Return>", self.start_search_thread)
 
         self.search_button = customtkinter.CTkButton(self.search_frame, text="Search Character", command=self.start_search_thread)
-        self.search_button.grid(row=1, column=0, padx=(10,5), pady=(0,10), sticky="e")
+        self.search_button.grid(row=1, column=1, padx=(0,5), pady=(0,10))
         
         self.stop_search_button = customtkinter.CTkButton(self.search_frame, text="Stop", command=self.stop_search, state="disabled")
-        self.stop_search_button.grid(row=2, column=0, padx=(10,5), pady=(0,10), sticky="w")
-        self.stop_search_button.grid_columnconfigure(0, weight=1)
+        self.stop_search_button.grid(row=1, column=2, padx=(0,5), pady=(0,10))
 
         self.race_mode_button = customtkinter.CTkButton(self.search_frame, text="Race Mode", command=self.launch_race_mode_thread, state="disabled")
-        self.race_mode_button.grid(row=2, column=0, padx=(0,10), pady=(0,10), sticky="e")
-        self.race_mode_button.grid_columnconfigure(0, weight=1)
+        self.race_mode_button.grid(row=1, column=3, padx=(0,10), pady=(0,10))
         
         # --- Results Frame (replaces Textbox) ---
         self.results_frame = customtkinter.CTkScrollableFrame(self)
@@ -598,6 +596,9 @@ class App(customtkinter.CTk):
         self.disclaimer_label = customtkinter.CTkLabel(self, text="This product isn't affiliated with or endorsed by Grinding Gear Games in any way.", text_color="gray")
         self.disclaimer_label.grid(row=5, column=0, padx=20, pady=(0, 10), sticky="s")
 
+        self._is_narrow_layout = False
+        self.bind("<Configure>", self.on_resize)
+
         self.load_leagues()
 
     def get_selected_league(self):
@@ -609,6 +610,43 @@ class App(customtkinter.CTk):
         except Exception:
             # This can happen if the menu is not yet populated
             return None
+
+    def on_resize(self, event=None):
+        width = self.winfo_width()
+        
+        if width <= 1: # Initial call might have width 1
+            return
+
+        threshold = 700
+        is_narrow = width < threshold
+        
+        is_currently_narrow = getattr(self, '_is_narrow_layout', False)
+
+        if is_narrow and not is_currently_narrow:
+            # Change to narrow layout
+            for i in range(4): self.search_frame.grid_columnconfigure(i, weight=1)
+
+            # Row 1: Entry and Search button
+            self.char_name_entry.grid(row=1, column=0, columnspan=3, padx=(10,5), pady=(0,5), sticky="ew")
+            self.search_button.grid(row=1, column=3, columnspan=1, padx=(5,10), pady=(0,5), sticky="ew")
+
+            # Row 2: Stop and Race Mode buttons
+            self.stop_search_button.grid(row=2, column=0, columnspan=2, padx=(10,5), pady=(5,10), sticky="ew")
+            self.race_mode_button.grid(row=2, column=2, columnspan=2, padx=(5,10), pady=(5,10), sticky="ew")
+            
+            self._is_narrow_layout = True
+
+        elif not is_narrow and is_currently_narrow:
+            # Change back to wide layout
+            self.search_frame.grid_columnconfigure(0, weight=1)
+            for i in range(1, 4): self.search_frame.grid_columnconfigure(i, weight=0)
+
+            self.char_name_entry.grid(row=1, column=0, columnspan=1, padx=10, pady=(0,10), sticky="ew")
+            self.search_button.grid(row=1, column=1, columnspan=1, padx=(0,5), pady=(0,10), sticky="")
+            self.stop_search_button.grid(row=1, column=2, columnspan=1, padx=(0,5), pady=(0,10), sticky="")
+            self.race_mode_button.grid(row=1, column=3, columnspan=1, padx=(0,10), pady=(0,10), sticky="")
+            
+            self._is_narrow_layout = False
 
     def _get_league_id_from_name(self, league_name_or_id):
         """
@@ -648,25 +686,42 @@ class App(customtkinter.CTk):
         slug = league.lower()
         if slug == "standard": slug = "standard"
         elif slug == "hardcore": slug = "hardcore"
+        elif slug == "ruthless": slug = "ruthless"
+        elif slug == "hardcore ruthless": slug = "hcruthless"
         elif slug == "ssf standard": slug = "ssf"
         elif slug == "ssf hardcore": slug = "hcssf"
+        elif slug == "ssf ruthless": slug = "ssfruthless"
+        elif slug == "ssf hardcore ruthless": slug = "hcssfruthless"
         else:
+            # Handle event leagues
+            slug = slug.replace("(", " ").replace(")", " ").replace(",", " ")
+            parts = slug.split()
+            keywords = ["hardcore", "hc", "ssf", "ruthless", "r"]
+            base_league_parts = [p for p in parts if p not in keywords]
+            base_league = "".join(base_league_parts)
+
+            is_hc = "hardcore" in parts or "hc" in parts
+            is_ssf = "ssf" in parts
+            is_ruthless = "ruthless" in parts or "r" in parts
+
+            # Determine prefix based on hc/ssf combination
             prefix = ""
+            if is_hc and is_ssf:
+                prefix = "hcssf"
+            elif is_hc:
+                prefix = "hc"
+
+            # Determine suffix, which can include ssf and/or r
             suffix = ""
-            if slug.startswith("ssf "):
-                slug = slug[4:]
+            if is_ssf and not is_hc: # ssf is a suffix only if not hc
                 suffix = "ssf"
-            if slug.startswith("hardcore "):
-                slug = slug[9:]
-                prefix = "hc"
-            elif slug.startswith("hc "):
-                slug = slug[3:]
-                prefix = "hc"
-            slug = slug.replace(" ", "")
-            slug = f"{prefix}{slug}{suffix}"
+            if is_ruthless: # r is always appended to the suffix
+                suffix += "r"
+
+            slug = f"{prefix}{base_league}{suffix}"
 
         formatted_account = account_name.replace("#", "-")
-        url = f"https://poe.ninja/builds/{slug}/character/{formatted_account}/{char_name}"
+        url = f"https://poe.ninja/poe1/builds/{slug}/character/{formatted_account}/{char_name}"
         webbrowser.open_new_tab(url)
 
     def on_ascendancy_change(self, choice):
@@ -689,7 +744,11 @@ class App(customtkinter.CTk):
             if isinstance(leagues, list):
                 # The proxy filters to PC leagues; we just need to display them.
                 self.all_leagues_data = leagues # Store full data for ID lookup
-                league_display_names = [league.get('text', league['id']) for league in leagues]
+                
+                ignored_leagues = ["Hardcore", "SSF Hardcore", "Hardcore Ruthless", "SSF Hardcore Ruthless", "Hardcore SSF", "Hardcore SSF Ruthless"]
+                filtered_leagues = [l for l in leagues if l['id'] not in ignored_leagues]
+                
+                league_display_names = [league.get('text', league['id']) for league in filtered_leagues]
                 league_display_names.sort()
                 self.league_menu.configure(values=league_display_names)
 
