@@ -1,6 +1,6 @@
 # PoeLadderTracker
 
-![PoeLadderTracker Screenshot](https://snipboard.io/w0BXzr.jpg)
+![PoeLadderTracker Screenshot](https://snipboard.io/jwlVhI.jpg)
 
 A desktop application for tracking and viewing Path of Exile ladder standings for public and private leagues. This application uses a proxy server to protect API credentials.
 
