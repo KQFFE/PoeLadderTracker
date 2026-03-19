@@ -2,21 +2,25 @@
 
 ![PoeLadderTracker Screenshot](https://snipboard.io/w0BXzr.jpg)
 
-A desktop application for tracking and viewing Path of Exile ladder standings for public and private leagues. This application uses a proxy server to protect API credentials.
+A tool for tracking and viewing Path of Exile ladder standings, available as both a **Desktop Application** and a **Web Application**. Both interfaces use a secure proxy server to protect API credentials.
 
 ## Features
 
-- Fetches and displays ladder data for any public league.
-- **Supports private leagues** by allowing users to enter the league's exact name.
-- Filters the ladder to show the top characters for a specific Ascendancy.
-- Searches the entire ladder for a specific character to find their global and ascendancy rank.
+- **Dual Interfaces**: Access data via a native Desktop GUI or a responsive Web Interface.
+- **Ladder Browsing**: Fetches and displays ladder data for any public league.
+- **Private Leagues**: Supports private leagues by allowing users to enter the league's exact name.
+- **Race Mode**: Real-time tracking of a specific character, displaying **XP per hour**, level progress, and immediate neighbors (Ahead/Behind) for both Ascendancy and Global ranks.
+- **Filtering**: Filter the ladder by specific Ascendancy or Base Class.
+- **Deep Search**: Option to scan deeper into the API for characters (Public leagues only).
+- **PoE Ninja Integration**: Direct links to view character builds on PoE Ninja.
 - "Show More" functionality to progressively load more characters for a selected ascendancy.
+- **Popout Window**: (Web) Detach Race Mode into a standalone window for monitoring.
 
 ## How it Works
 
 This project is split into two parts:
-1.  **Desktop App (`main.py`)**: The GUI that users interact with. It contains no API keys.
-2.  **Proxy Server (`proxy_server.py`)**: A simple web server that you host. It securely stores your GGG API keys and makes requests to the GGG API on behalf of the desktop app.
+1.  **Proxy Server / Web App (`proxy_server.py`)**: A Flask application that serves the **Web Interface** and acts as a secure API proxy. It securely stores GGG API keys and handles requests.
+2.  **Desktop App (`main.py`)**: A `customtkinter` GUI that interacts with the Proxy Server to fetch data.
 
 This design ensures your API credentials are never exposed to end-users.
 
@@ -38,6 +42,10 @@ This design ensures your API credentials are never exposed to end-users.
     python main.py
     ```
     *No API key configuration is needed for end-users.*
+
+## Setup for Users (Web App)
+
+ Simply navigate to the URL where the Proxy Server is deployed (e.g., `https://your-app-name.fly.dev`). No installation required.
 
 ## Setup for the Developer (Hosting the Proxy)
 
@@ -84,6 +92,15 @@ This design ensures your API credentials are never exposed to end-users.
 - Enter the **exact name** of your private league (e.g., `My Awesome League (PL12345)`).
 - Click **Fetch Characters**.
 - If the league name is incorrect or the league is empty, an error message will be displayed.
+
+### Race Mode
+
+1.  Enter a character name in the search bar and click **Search Character**.
+2.  Once found, the **Race Mode** button will enable.
+3.  Click it to open a dedicated view that tracks:
+    - Current XP/hour (updates automatically).
+    - Rank relative to immediate neighbors.
+    - **(Web Only)** Click "Popout" to open a small window ideal for second monitors.
 
 ## Disclaimer
 
