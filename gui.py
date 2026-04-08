@@ -5,7 +5,7 @@ import bisect
 import webbrowser
 # Use the new singleton API client
 from api import GGGAPIClient
-from data_processor import process_ladder_data, ALL_ASCENDANCY_NAMES, STANDARD_ASCENDANCIES, TEMPORARY_ASCENDANCIES, BASE_CLASSES
+from data_processor import process_ladder_data, ALL_ASCENDANCY_NAMES, STANDARD_ASCENDANCIES, TEMPORARY_ASCENDANCIES, BASE_CLASSES, CLASS_TO_BASE
 
 CHUNK_SIZE = 200
 DROPDOWN_SEPARATOR = "──────────"
@@ -858,19 +858,19 @@ class App(customtkinter.CTk):
             if char['name'] in self.displayed_character_names:
                 continue
             
-            asc = char['ascendancy']
+            group_name = char.get('group', char['ascendancy'])
             
             # Ensure we have a frame for this ascendancy
-            if asc not in self.ascendancy_frames:
+            if group_name not in self.ascendancy_frames:
                 # If this is not the first ascendancy frame, add a separator before it
                 if self.ascendancy_frames:
                     customtkinter.CTkFrame(self.results_frame, height=2, fg_color=ASC_SEPARATOR_COLOR).pack(fill="x", padx=5, pady=5)
                 
                 frame = customtkinter.CTkFrame(self.results_frame, fg_color="transparent", corner_radius=0)
                 frame.pack(fill="x")
-                self.ascendancy_frames[asc] = frame
+                self.ascendancy_frames[group_name] = frame
             
-            asc_frame = self.ascendancy_frames[asc]
+            asc_frame = self.ascendancy_frames[group_name]
             
             # If frame already has children (rows), add a row separator
             if len(asc_frame.winfo_children()) > 0:
@@ -937,7 +937,12 @@ class App(customtkinter.CTk):
         """Helper to determine if the data fetching loop should stop."""
         if self.current_offset >= 15000: return True
         if ascendancy:
-            count = sum(1 for entry in self.all_fetched_entries if entry['character']['class'] == ascendancy)
+            # Count characters that match the specific ascendancy OR map to the selected base class
+            count = 0
+            for entry in self.all_fetched_entries:
+                char_class = entry['character']['class']
+                if char_class == ascendancy or CLASS_TO_BASE.get(char_class) == ascendancy:
+                    count += 1
             return count >= self.current_limit
         
         ascendancy_counts = {asc: 0 for asc in ALL_ASCENDANCY_NAMES}
@@ -949,7 +954,7 @@ class App(customtkinter.CTk):
         if "Phrecia" in selected_league:
             relevant_asc = TEMPORARY_ASCENDANCIES
         else:
-            relevant_asc = STANDARD_ASCENDANCIES + BASE_CLASSES
+            relevant_asc = STANDARD_ASCENDANCIES
         return all(ascendancy_counts[asc] >= self.current_limit for asc in relevant_asc)
 
     def fetch_and_display_data(self):
@@ -983,9 +988,9 @@ class App(customtkinter.CTk):
             self.all_fetched_entries.extend(data['entries'])
             self.current_offset += CHUNK_SIZE
 
-            if not ascendancy:
-                final_results = process_ladder_data(self.all_fetched_entries, limit=self.current_limit)
-                self.after(0, self.display_results, final_results, selected_league_input)
+            # Live update for "All" or Base Class views
+            final_results = process_ladder_data(self.all_fetched_entries, selected_ascendancy=ascendancy, limit=self.current_limit)
+            self.after(0, self.display_results, final_results, selected_league_input)
             time.sleep(0.5)
         
         if self.stop_search_event.is_set():

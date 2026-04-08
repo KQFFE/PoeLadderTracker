@@ -24,10 +24,16 @@ const XP_THRESHOLDS = [
 ];
 
 const STANDARD_ASCENDANCIES = [
-    "Guardian", "Hierophant", "Inquisitor", "Assassin", "Saboteur", "Trickster", 
-    "Berserker", "Chieftain", "Juggernaut", "Champion", "Gladiator", "Slayer", 
-    "Necromancer", "Occultist", "Elementalist", "Deadeye", "Pathfinder", "Warden", "Ascendant"
+    "Ascendant", "Assassin", "Berserker", "Champion", "Chieftain", "Deadeye",
+    "Elementalist", "Gladiator", "Guardian", "Hierophant", "Inquisitor",
+    "Juggernaut", "Necromancer", "Occultist", "Pathfinder", "Reliquarian",
+    "Saboteur", "Slayer", "Trickster", "Warden"
 ];
+
+const BASE_CLASSES = [
+    "Duelist", "Marauder", "Ranger", "Scion", "Shadow", "Templar", "Witch"
+];
+
 const TEMPORARY_ASCENDANCIES = [
     "Ancestral Commander", "Antiquarian", "Architect of Chaos", "Aristocrat", 
     "Behemoth", "Blind Prophet", "Bog Shaman", "Daughter of Oshabi", 
@@ -35,7 +41,21 @@ const TEMPORARY_ASCENDANCIES = [
     "Puppeteer", "Scavenger", "Servant of Arakaali", "Surfcaster", 
     "Whisperer", "Wildspeaker"
 ];
+
 const ALL_ASCENDANCIES = [...STANDARD_ASCENDANCIES, ...TEMPORARY_ASCENDANCIES];
+
+const CLASS_TO_BASE = {
+    "Assassin": "Shadow", "Saboteur": "Shadow", "Trickster": "Shadow", "Shadow": "Shadow",
+    "Slayer": "Duelist", "Gladiator": "Duelist", "Champion": "Duelist", "Duelist": "Duelist",
+    "Juggernaut": "Marauder", "Berserker": "Marauder", "Chieftain": "Marauder", "Marauder": "Marauder",
+    "Deadeye": "Ranger", "Pathfinder": "Ranger", "Warden": "Ranger", "Ranger": "Ranger",
+    "Guardian": "Templar", "Hierophant": "Templar", "Inquisitor": "Templar", "Templar": "Templar",
+    "Necromancer": "Witch", "Occultist": "Witch", "Elementalist": "Witch", "Witch": "Witch",
+    "Ascendant": "Scion", "Scion": "Scion",
+    "Reliquarian": "Scion", "Antiquarian": "Duelist", "Aristocrat": "Scion", "Behemoth": "Marauder", 
+    "Blind Prophet": "Templar", "Wildspeaker": "Ranger", "Whisperer": "Witch", 
+    "Architect of Chaos": "Shadow"
+};
 
 function calculateProgress(level, xp) {
     if (level >= 100) return 100;
@@ -148,11 +168,24 @@ function populateAscendancies() {
             select.appendChild(option);
         });
     } else {
-        STANDARD_ASCENDANCIES.sort();
-        STANDARD_ASCENDANCIES.forEach(asc => {
+        const sortedAsc = [...STANDARD_ASCENDANCIES].sort();
+        sortedAsc.forEach(asc => {
             const option = document.createElement('option');
             option.value = asc;
             option.textContent = asc;
+            select.appendChild(option);
+        });
+
+        const sep = document.createElement('option');
+        sep.disabled = true;
+        sep.textContent = "──────────";
+        select.appendChild(sep);
+
+        const sortedBase = [...BASE_CLASSES].sort();
+        sortedBase.forEach(bc => {
+            const option = document.createElement('option');
+            option.value = bc;
+            option.textContent = bc;
             select.appendChild(option);
         });
     }
@@ -282,7 +315,13 @@ function shouldStopFetching(ascendancy) {
     if (currentOffset >= 15000) return true;
     
     if (ascendancy) {
-        const count = allFetchedEntries.filter(e => e.character.class === ascendancy).length;
+        let count = 0;
+        for (const e of allFetchedEntries) {
+            const charClass = e.character.class;
+            if (charClass === ascendancy || CLASS_TO_BASE[charClass] === ascendancy) {
+                count++;
+            }
+        }
         return count >= currentLimit;
     }
     
@@ -729,44 +768,75 @@ function renderLadderTable(elementId, ahead, current, behind, myXp, rankField, r
 function processLadderData(entries, selectedAscendancy, limit) {
     const results = [];
     const ascCounts = {};
+    const isBaseFilter = BASE_CLASSES.includes(selectedAscendancy);
 
     // Calculate ranks
     for (const entry of entries) {
-        const asc = entry.character.class;
-        if (!ascCounts[asc]) ascCounts[asc] = 0;
-        ascCounts[asc]++;
+        const actualClass = entry.character.class;
+        let targetGroup = actualClass;
+
+        if (isBaseFilter) {
+            if (CLASS_TO_BASE[actualClass] === selectedAscendancy) {
+                targetGroup = selectedAscendancy;
+            } else {
+                continue;
+            }
+        } else if (selectedAscendancy && actualClass !== selectedAscendancy) {
+            continue;
+        }
+
+        if (!ascCounts[targetGroup]) ascCounts[targetGroup] = 0;
+        ascCounts[targetGroup]++;
         
-        const item = {
+        results.push({
             name: entry.character.name,
             level: entry.character.level,
             xp: entry.character.experience,
-            ascendancy: asc,
+            ascendancy: actualClass,
+            group: targetGroup,
             global_rank: entry.rank,
-            asc_rank: ascCounts[asc],
+            asc_rank: 0, // Temporarily set to 0, will be re-assigned after sorting
             account_name: entry.account ? entry.account.name : null,
             dead: entry.dead,
             retired: entry.retired
-        };
-
-        if (selectedAscendancy) {
-            if (asc === selectedAscendancy && item.asc_rank <= limit) {
-                results.push(item);
-            }
-        } else {
-            if (item.asc_rank <= limit) {
-                results.push(item);
-            }
-        }
+        });
     }
     
     // Sort
     results.sort((a, b) => {
-        if (a.ascendancy < b.ascendancy) return -1;
-        if (a.ascendancy > b.ascendancy) return 1;
-        return a.asc_rank - b.asc_rank;
+        if (!isBaseFilter) {
+            if (a.ascendancy < b.ascendancy) return -1;
+            if (a.ascendancy > b.ascendancy) return 1;
+        }
+        // For base classes, sort by global rank. Otherwise, sort by level (descending), then XP (descending).
+        if (isBaseFilter) return a.global_rank - b.global_rank;
+        if (b.level !== a.level) return b.level - a.level; // Fallback for individual ascendancies
+        return b.xp - a.xp; // Fallback for individual ascendancies
     });
     
-    return results;
+    // Re-assign asc_rank after final sort and before applying the limit.
+    // This ensures asc_rank reflects the rank within the *final, sorted* list
+    // for the specific group (either individual ascendancy or aggregated base class).
+    if (isBaseFilter) {
+        for (let i = 0; i < results.length; i++) {
+            results[i].asc_rank = i + 1;
+        }
+    } else { // For individual ascendancies, re-rank within their sorted groups
+        let currentAsc = null;
+        let rankInGroup = 0;
+        for (let i = 0; i < results.length; i++) {
+            if (results[i].ascendancy !== currentAsc) {
+                currentAsc = results[i].ascendancy;
+                rankInGroup = 1;
+            } else {
+                rankInGroup++;
+            }
+            results[i].asc_rank = rankInGroup;
+        }
+    }
+
+    // Return the top 'limit' characters for each individual group/ascendancy
+    return results.filter(r => r.asc_rank <= limit);
 }
 
 function renderResults(results, leagueId) {
@@ -796,13 +866,13 @@ function renderResults(results, leagueId) {
     results.forEach(char => {
         if (displayedCharacterNames.has(char.name)) return;
 
-        const asc = char.ascendancy;
-        const safeAsc = asc.replace(/\s+/g, '-');
-        let tbody = document.getElementById(`tbody-${safeAsc}`);
+        const groupName = char.group || char.ascendancy;
+        const safeGroup = groupName.replace(/\s+/g, '-');
+        let tbody = document.getElementById(`tbody-${safeGroup}`);
 
         if (!tbody) {
             tbody = document.createElement('tbody');
-            tbody.id = `tbody-${safeAsc}`;
+            tbody.id = `tbody-${safeGroup}`;
             table.appendChild(tbody);
 
             // Add Ascendancy Separator if there are previous groups
