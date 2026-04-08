@@ -1,6 +1,6 @@
 # PoeLadderTracker
 
-![PoeLadderTracker Screenshot](https://snipboard.io/jwlVhI.jpg)
+![PoeLadderTracker Screenshot](https://snipboard.io/Zla8wi.jpg)
 ![Race Mode](https://snipboard.io/fi48cN.jpg)
 
 A tool for tracking and viewing Path of Exile ladder standings, available as both a **Desktop Application** and a **Web Application**. Both interfaces use a secure proxy server to protect API credentials.
