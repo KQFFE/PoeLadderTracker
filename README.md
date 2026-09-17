@@ -254,3 +254,19 @@ To package the desktop application into a single `.exe` file for distribution on
     ```
 
 4.  **Find the executable**: The final `PoeLadderTracker.exe` will be located in the `dist` folder.
+
+### Clean rebuild step
+
+If the generated `.exe` fails to start with a missing Tcl/Tk runtime error such as `Tcl data directory ... not found`, do a full clean rebuild from the project root:
+
+```powershell
+cd E:\Dev\PoeLadderTracker
+
+rmdir /s /q build
+rmdir /s /q dist
+
+.\.venv\Scripts\python.exe -m pip install --upgrade pyinstaller customtkinter
+.\.venv\Scripts\python.exe -m PyInstaller --clean PoeLadderTracker.spec
+```
+
+Then launch the generated exe directly from the `dist` folder.
