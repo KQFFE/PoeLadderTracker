@@ -133,13 +133,15 @@ CI is also configured in GitHub Actions to run both checks automatically on push
 
  Simply navigate to the URL where the Proxy Server is deployed (e.g., `https://your-app-name.fly.dev`). No installation required.
 
-## Setup for the Developer (Hosting the Proxy)
+
+
+### Standard setup steps
 
 1.  **Install `flyctl`**: First, install the `fly.io` command-line tool by running the following command in PowerShell:
     ```powershell
     iwr https://fly.io/install.ps1 -useb | iex
     ```
-    After installation, **restart your terminal**.
+    After installation, **restart your terminal** or update `PATH` in the current session using the steps above.
 
 2.  **Get GGG API Credentials**: Create an application on your Path of Exile account page to get a `Client ID` and `Client Secret`.
 
@@ -164,6 +166,45 @@ CI is also configured in GitHub Actions to run both checks automatically on push
     fly deploy
     ```
     After deployment, your proxy will be live at `https://poeladdertracker.fly.dev`.
+
+## Deploy: Fly.io Setup and Fixes
+
+### Fix: Fly CLI is installed, but your current PowerShell session can't see it
+
+The installer puts the executable in your user profile under `C:\Users\<you>\.fly\bin`, but the current PowerShell session may not have reloaded `PATH` yet. This is why `fly` and `flyctl` still appear as missing commands.
+
+Use this in your current terminal:
+
+```powershell
+$env:Path += ";$HOME\.fly\bin"
+flyctl version
+```
+
+If that works, continue with:
+
+```powershell
+flyctl auth login
+flyctl deploy
+```
+
+---
+
+### If you want the direct path without editing PATH
+
+```powershell
+& "$HOME\.fly\bin\flyctl.exe" version
+& "$HOME\.fly\bin\flyctl.exe" auth login
+& "$HOME\.fly\bin\flyctl.exe" deploy
+```
+
+---
+
+### Why `fly` failed
+
+The installer says **"Restart your shell"** because the command is installed, but the current terminal session has not reloaded `PATH` yet. The wrapper command `fly` may not exist until the updated environment is active.
+
+> In short: the binary is there, but PowerShell has not reloaded the PATH. Add `$HOME\.fly\bin` to `$env:Path` and rerun.
+
 
 ## Usage
 
