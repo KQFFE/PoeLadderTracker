@@ -25,6 +25,91 @@ This project is split into two parts:
 
 This design ensures your API credentials are never exposed to end-users.
 
+## Local Development Setup
+
+Use a virtual environment for all local work. This keeps dependencies isolated and avoids the common "ModuleNotFoundError" issue when the project expects packages like `Flask` or `requests` to be installed in the active interpreter.
+
+### 1) Create and activate the venv on Windows
+
+From the project root:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+If PowerShell blocks activation, run this once in the current terminal session:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+```
+
+After activation, your prompt should change to include `(.venv)` and `python` should resolve to the project venv.
+
+### 2) Install project dependencies
+
+```powershell
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
+```
+
+This installs both the app dependencies and the test dependencies (`pytest`, `pytest-cov`).
+
+### 3) Run the app locally
+
+```powershell
+python proxy_server.py
+```
+
+Then open:
+
+```text
+http://127.0.0.1:5000
+```
+
+## Backend Testing (pytest)
+
+Run the Python route and proxy tests from the project root with the virtual environment active:
+
+```powershell
+(Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned) ; (& e:\Dev\PoeLadderTracker\.venv\Scripts\Activate.ps1)
+python -m pytest tests/test_backend.py --cov=proxy_server --cov-report=term-missing --cov-fail-under=80
+```
+
+This verifies the backend behavior and enforces the minimum coverage threshold.
+
+## Frontend Testing (Playwright)
+
+Run the browser-level UI checks with the virtual environment active:
+
+```powershell
+(Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned) ; (& e:\Dev\PoeLadderTracker\.venv\Scripts\Activate.ps1)
+npm install
+npx playwright test
+```
+
+For a headed run:
+
+```powershell
+npx playwright test --headed
+```
+
+If the activation step is skipped, the app can fail with `ModuleNotFoundError` for dependencies such as `requests`.
+
+## Quality Checks
+
+The project includes both backend and frontend automation. To run the complete suite locally:
+
+```powershell
+npm run test:all
+```
+
+This runs the Python backend test suite with coverage enforcement and the Playwright end-to-end browser tests.
+
+CI is also configured in GitHub Actions to run both checks automatically on pushes and pull requests.
+
 ## Setup for Users
 
 1.  **Prerequisites**: Ensure you have Python 3 installed. It's recommended to use a virtual environment.

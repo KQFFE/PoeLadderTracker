@@ -1,0 +1,14 @@
+{
+  "name": "poeladdertracker",
+  "private": true,
+  "scripts": {
+    "test:backend": "python -m pytest tests/test_backend.py --cov=proxy_server --cov-report=term-missing --cov-fail-under=80",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
+    "test:all": "npm run test:backend && npm run test:e2e"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
+}
