@@ -1,8 +1,8 @@
 STANDARD_ASCENDANCIES = [
     "Ascendant", "Assassin", "Berserker", "Champion", "Chieftain", "Deadeye",
     "Elementalist", "Gladiator", "Guardian", "Hierophant", "Inquisitor",
-    "Juggernaut", "Necromancer", "Occultist", "Pathfinder", "Reliquarian",
-    "Saboteur", "Slayer", "Trickster", "Warden"
+    "Juggernaut", "Luminary", "Necromancer", "Occultist", "Pathfinder",
+    "Reliquarian", "Saboteur", "Slayer", "Trickster", "Warden"
 ]
 
 TEMPORARY_ASCENDANCIES = [
@@ -27,7 +27,7 @@ CLASS_TO_BASE = {
     "Deadeye": "Ranger", "Pathfinder": "Ranger", "Warden": "Ranger", "Ranger": "Ranger",
     "Guardian": "Templar", "Hierophant": "Templar", "Inquisitor": "Templar", "Templar": "Templar",
     "Necromancer": "Witch", "Occultist": "Witch", "Elementalist": "Witch", "Witch": "Witch",
-    "Ascendant": "Scion", "Scion": "Scion",
+    "Ascendant": "Scion", "Luminary": "Scion", "Scion": "Scion",
     # Event specific mappings (best effort)
     "Reliquarian": "Scion", "Antiquarian": "Duelist", "Aristocrat": "Scion", "Behemoth": "Marauder", 
     "Blind Prophet": "Templar", "Wildspeaker": "Ranger", "Whisperer": "Witch", 

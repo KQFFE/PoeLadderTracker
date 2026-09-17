@@ -1,4 +1,5 @@
 import proxy_server
+from data_processor import BASE_CLASSES, CLASS_TO_BASE, STANDARD_ASCENDANCIES, process_ladder_data
 
 
 class FakeResponse:
@@ -13,6 +14,24 @@ class FakeResponse:
 
     def json(self):
         return self._payload
+
+
+def test_classification_regression_for_standard_classes_and_luminary():
+    assert "Luminary" in STANDARD_ASCENDANCIES
+    assert CLASS_TO_BASE["Luminary"] == "Scion"
+    assert CLASS_TO_BASE["Ascendant"] == "Scion"
+    assert all(base in BASE_CLASSES for base in set(CLASS_TO_BASE.values()))
+
+    ladder = [
+        {"rank": 1, "character": {"name": "Alpha", "class": "Luminary", "level": 90, "experience": 500000}},
+        {"rank": 2, "character": {"name": "Beta", "class": "Ascendant", "level": 89, "experience": 450000}},
+        {"rank": 3, "character": {"name": "Gamma", "class": "Champion", "level": 88, "experience": 400000}},
+    ]
+
+    filtered = process_ladder_data(ladder, selected_ascendancy="Scion", limit=10)
+
+    assert any(item["name"] == "Alpha" and item["ascendancy"] == "Luminary" for item in filtered)
+    assert any(item["name"] == "Beta" and item["ascendancy"] == "Ascendant" for item in filtered)
 
 
 def test_resource_path_works_from_project_root():
