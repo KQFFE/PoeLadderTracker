@@ -6,17 +6,20 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: Verify Python is available
+        run: python --version
 
       - name: Install Python dependencies
         run: |
@@ -25,10 +28,15 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: 'npm'
+
+      - name: Verify Node is available
+        run: |
+          node --version
+          npm --version
 
       - name: Install Node dependencies
         run: npm install
